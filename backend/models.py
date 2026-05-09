@@ -8,6 +8,9 @@ class TherapySession(SQLModel, table=True):
     """
     id: Optional[int] = Field(default=None, primary_key=True)
     date: str
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    approved: bool = False
     transcript: Optional[str] = None
     clinical_note: Optional[str] = None
     
@@ -24,8 +27,14 @@ class Patient(SQLModel, table=True):
     """
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
-    age: int
-    condition: str
+    surname: str = ""
+    age: int = 0
+    condition: str = ""
+    address: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    is_active: bool = True
+    referral_letter: Optional[str] = None
     intake_notes: Optional[str] = None
     
     # One-to-many relationship with TherapySession
