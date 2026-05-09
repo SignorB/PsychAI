@@ -204,7 +204,7 @@ def approve_session(patient_id: int, session_id: int, session: Session = Depends
     therapy_session = session.get(TherapySession, session_id)
     if not therapy_session or therapy_session.patient_id != patient_id:
         raise HTTPException(status_code=404, detail="Session not found")
-    therapy_session.approved = True
+    therapy_session.approved = not therapy_session.approved
     session.add(therapy_session)
     session.commit()
     session.refresh(therapy_session)

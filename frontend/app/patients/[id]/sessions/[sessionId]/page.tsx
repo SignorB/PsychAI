@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
   getPatient,
   getPatientSession,
@@ -282,20 +283,34 @@ export default function SessionDetailPage() {
           <p className="text-sm text-[#848484] mt-1">
             {patient.name} · {patient.condition}
           </p>
+          {(generated?.themes?.length > 0 || generated?.symptoms?.length > 0) && (
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              {generated?.themes?.map((theme: any) => (
+                <Badge key={theme.title} variant="outline" className="bg-clinical-soft/50 text-[#848484] border-[#e2e2e2] font-medium px-2.5 py-0.5 text-[11px]">
+                  {theme.title}
+                </Badge>
+              ))}
+              {generated?.symptoms?.map((symptom: any) => (
+                <Badge key={symptom.name} variant="outline" className="bg-clinical-soft/50 text-[#848484] border-[#e2e2e2] font-medium px-2.5 py-0.5 text-[11px]">
+                  {symptom.name}
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           {!session.approved ? (
-            <Button onClick={handleApprove} disabled={isApproving} variant="outline" className="text-emerald-600 border-emerald-200 hover:bg-emerald-50">
-              {isApproving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-              {isApproving ? "Confirming..." : "Confirm overview"}
+            <Button onClick={handleApprove} disabled={isApproving} variant="outline" className="text-amber-600 border-amber-200 hover:bg-amber-100">
+              {isApproving ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4 mr-2"/>}
+              {isApproving ? "Confirming..." : "To Confirm"}
             </Button>
           ) : (
-            <div className="flex items-center px-4 h-9 rounded-md bg-emerald-50 text-emerald-700 text-sm font-medium border border-emerald-200">
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Confirmed
-            </div>
+            <Button onClick={handleApprove} disabled={isApproving} variant="outline" className="flex items-center justify-center px-4 h-10 rounded-md bg-emerald-50 text-emerald-700 text-sm font-medium border border-emerald-200 hover:bg-emerald-100 hover:text-emerald-800 transition">
+              {isApproving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+              {isApproving ? "Reverting..." : "Confirmed"}
+            </Button>
           )}
-          <Button onClick={handleGenerate} disabled={isGenerating || !transcript.trim()}>
+          <Button onClick={handleGenerate} disabled={isGenerating || !transcript.trim() || session.approved}>
             {isGenerating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
             {isGenerating ? "Generating..." : "Generate AI note"}
           </Button>
@@ -309,9 +324,9 @@ export default function SessionDetailPage() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
+      <div className="max-w-5xl space-y-6">
+        <div className="grid lg:grid-cols-2 gap-6">
+          <Card className="flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Mic className="h-4 w-4 text-[#848484]" />
@@ -321,26 +336,26 @@ export default function SessionDetailPage() {
                 Record or upload audio, then transcribe it with local Whisper.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 flex-1 flex flex-col">
               <div className="flex flex-wrap items-center gap-2">
                 {!isRecording ? (
-                  <Button variant="outline" onClick={startRecording} disabled={isTranscribing}>
+                  <Button variant="outline" onClick={startRecording} disabled={isTranscribing || session.approved}>
                     <Mic className="h-4 w-4" /> Record
                   </Button>
                 ) : (
-                  <Button variant="destructive" onClick={stopRecording}>
+                  <Button variant="destructive" onClick={stopRecording} disabled={session.approved}>
                     <Square className="h-4 w-4" /> Stop
                   </Button>
                 )}
                 <Button
                   variant="outline"
                   onClick={handleTranscribeRecording}
-                  disabled={!audioBlob || isRecording || isTranscribing}
+                  disabled={!audioBlob || isRecording || isTranscribing || session.approved}
                 >
                   {isTranscribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   {isTranscribing ? "Transcribing..." : "Transcribe"}
                 </Button>
-                <label className="inline-flex items-center justify-center gap-2 h-9 rounded-md border border-clinical-border bg-white px-3 text-sm font-medium text-clinical-ink hover:bg-clinical-soft cursor-pointer">
+                <label className={cn("inline-flex items-center justify-center gap-2 h-9 rounded-md border border-clinical-border bg-white px-3 text-sm font-medium text-clinical-ink hover:bg-clinical-soft cursor-pointer", (isTranscribing || isRecording || session.approved) && "opacity-50 pointer-events-none")}>
                   <Upload className="h-4 w-4" />
                   Upload audio
                   <input
@@ -348,7 +363,7 @@ export default function SessionDetailPage() {
                     accept="audio/*"
                     className="sr-only"
                     onChange={handleAudioFile}
-                    disabled={isTranscribing || isRecording}
+                    disabled={isTranscribing || isRecording || session.approved}
                   />
                 </label>
                 {isRecording && (
@@ -366,29 +381,32 @@ export default function SessionDetailPage() {
               <textarea
                 value={transcript}
                 onChange={(event) => setTranscript(event.target.value)}
-                className="w-full min-h-[220px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y"
+                disabled={session.approved}
+                className="w-full flex-1 min-h-[220px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y disabled:opacity-50 disabled:bg-clinical-soft/50"
                 placeholder="Paste or type the session transcript..."
               />
               <p className="mt-2 text-xs text-[#848484]">{transcript.length} characters</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="flex flex-col">
             <CardHeader>
               <CardTitle>Manual note</CardTitle>
               <CardDescription>
                 Optional clinician note merged into the AI draft request.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 flex flex-col">
               <textarea
                 value={manualNote}
                 onChange={(event) => setManualNote(event.target.value)}
-                className="w-full min-h-[120px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y"
+                disabled={session.approved}
+                className="w-full flex-1 min-h-[120px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y disabled:opacity-50 disabled:bg-clinical-soft/50"
                 placeholder="Add clinical context before generating..."
               />
             </CardContent>
           </Card>
+        </div>
 
           <Card>
             <CardHeader>
@@ -422,74 +440,6 @@ export default function SessionDetailPage() {
               )}
             </CardContent>
           </Card>
-        </div>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Extracted themes</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {generated?.themes?.length ? (
-                generated.themes.map((theme) => (
-                  <Badge key={theme.title} variant="info">
-                    {theme.title}
-                  </Badge>
-                ))
-              ) : (
-                <p className="text-sm text-[#848484]">Generate a note to see themes.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Symptoms / observations</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {generated?.symptoms?.length ? (
-                generated.symptoms.map((symptom) => (
-                  <div key={symptom.name} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="text-clinical-ink">{symptom.name}</span>
-                    <Badge variant="outline">{symptom.confidence}</Badge>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-[#848484]">Generate a note to see observations.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Ask patient history</CardTitle>
-              <CardDescription>
-                Uses the vector index populated when notes are generated.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <textarea
-                value={ragQuestion}
-                onChange={(event) => setRagQuestion(event.target.value)}
-                className="w-full min-h-[80px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y"
-              />
-              <Button variant="outline" className="w-full" onClick={handleAsk} disabled={isAsking || !ragQuestion.trim()}>
-                {isAsking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {isAsking ? "Asking..." : "Ask"}
-              </Button>
-              {ragAnswer && (
-                <div className="rounded-md bg-clinical-soft p-3 text-sm text-clinical-ink">
-                  <p>{ragAnswer.answer}</p>
-                  {ragAnswer.citations?.length > 0 && (
-                    <p className="mt-2 text-xs text-[#848484]">
-                      Citations: {ragAnswer.citations.join(", ")}
-                    </p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </div>
   );
