@@ -97,7 +97,11 @@ def seed_database():
                 current_date = datetime.utcnow() - timedelta(days=num_sessions * 7)
                 
                 for j in range(num_sessions):
-                    s_date = current_date + timedelta(days=j*7 + random.randint(-1, 1))
+                    if j == num_sessions - 1 and random.random() > 0.5:
+                        s_date = datetime.utcnow() + timedelta(days=random.randint(1, 2))
+                    else:
+                        s_date = current_date + timedelta(days=j*7 + random.randint(-1, 1))
+                    
                     start_hour = random.randint(8, 17)
                     end_hour = start_hour + 1
                     
