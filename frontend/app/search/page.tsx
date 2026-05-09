@@ -26,6 +26,7 @@ type SearchResult = {
   score: number;
   text: string;
   href: string;
+  metadata?: any;
 };
 
 const SEARCH_STATE_KEY = "psychord:advanced-search";
@@ -165,36 +166,6 @@ export default function AdvancedSearchPage() {
         </CardContent>
       </Card>
 
-      <div className="grid md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-start gap-3">
-            <Database className="h-4 w-4 text-[#848484] mt-0.5" />
-            <div>
-              <p className="text-xs text-[#848484]">Index status</p>
-              <p className="text-sm font-medium text-clinical-ink">
-                {indexed ? `${indexed.indexed_chunks} chunks indexed` : "Ready"}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-[#848484]">Patients</p>
-            <p className="text-sm font-medium text-clinical-ink">
-              {indexed?.patient_count ?? "-"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-[#848484]">Sessions</p>
-            <p className="text-sm font-medium text-clinical-ink">
-              {indexed?.session_count ?? "-"}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Results</CardTitle>
@@ -225,12 +196,17 @@ export default function AdvancedSearchPage() {
                           <Badge variant="outline">
                             {result.record_type || result.source_type || "source"}
                           </Badge>
+                          {result.metadata?.session_date && (
+                            <span className="text-xs text-[#848484] bg-clinical-soft px-2 py-0.5 rounded-full border border-clinical-border">
+                              {new Date(result.metadata.session_date).toLocaleDateString()}
+                            </span>
+                          )}
                           <span className="text-[11px] text-[#848484]">
                             score {result.score.toFixed(3)}
                           </span>
                         </div>
                         <p className="mt-2 text-sm text-[#848484] line-clamp-3">
-                          {result.text}
+                          {result.text.replace(/(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?/g, '$1')}
                         </p>
                       </div>
                       <ArrowRight className="h-4 w-4 text-[#848484] mt-1 shrink-0" />

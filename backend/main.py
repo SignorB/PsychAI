@@ -523,10 +523,12 @@ def _patient_index_text(patient: Patient) -> str:
 
 
 def _session_index_text(therapy_session: TherapySession) -> str:
+    # Safely extract just the date part (YYYY-MM-DD) if it's an ISO string
+    date_only = therapy_session.date.split("T")[0] if "T" in therapy_session.date else therapy_session.date
     return "\n".join(
         part
         for part in [
-            f"Seduta del {therapy_session.date}",
+            f"Seduta del {date_only}",
             f"Trascrizione:\n{therapy_session.transcript}" if therapy_session.transcript else "",
             f"Nota clinica:\n{therapy_session.clinical_note}" if therapy_session.clinical_note else "",
         ]
