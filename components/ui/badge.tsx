@@ -13,7 +13,7 @@ const badgeVariants = cva(
         warning: "bg-amber-50 text-amber-700",
         info: "bg-sky-50 text-sky-700",
         danger: "bg-rose-50 text-rose-700",
-        primary: "bg-clinical-ink text-white",
+        primary: "bg-clinical-brand text-white",
       },
     },
     defaultVariants: { variant: "default" },

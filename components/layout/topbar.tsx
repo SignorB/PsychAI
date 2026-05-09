@@ -22,7 +22,7 @@ export function Topbar() {
             <ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.75} />
             Local model · llama-3.1-8b
           </div>
-          <button className="hidden sm:flex items-center gap-2 h-10 px-4 rounded-md bg-clinical-ink text-white text-sm font-medium hover:opacity-90 transition">
+          <button className="hidden sm:flex items-center gap-2 h-10 px-4 rounded-md text-sm font-medium hover:opacity-90 transition text-[#ffffff] bg-[#6E5AA8]">
             <Mic className="h-4 w-4" strokeWidth={1.75} />
             Start session
           </button>

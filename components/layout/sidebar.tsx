@@ -32,7 +32,7 @@ export function Sidebar() {
     <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-clinical-border bg-white">
       <div className="px-6 py-6 border-b border-clinical-border">
         <Link href="/" className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-lg bg-[#848484] flex items-center justify-center">
+          <div className="h-9 w-9 rounded-lg bg-clinical-brand flex items-center justify-center">
             <Brain className="h-5 w-5 text-white" strokeWidth={1.75} />
           </div>
           <div>

@@ -47,10 +47,13 @@ const config: Config = {
         },
         clinical: {
           base: "#848484",
-          ink: "#2b2b2b",
-          surface: "#fafafa",
-          border: "#ececec",
-          soft: "#f4f4f5",
+          ink: "#2A1F4A",
+          surface: "#FAF7F0",
+          border: "#E5DCEF",
+          soft: "#EDE6F5",
+          brand: "#6E5AA8",
+          brandSoft: "#B8A7D9",
+          cream: "#F5F1E8",
         },
       },
       borderRadius: {
