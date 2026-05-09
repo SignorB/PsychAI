@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, Database, Loader2, RefreshCw, Search, Sparkles } from "lucide-react";
 import {
   Card,
@@ -28,6 +28,8 @@ type SearchResult = {
   href: string;
 };
 
+const SEARCH_STATE_KEY = "psychord:advanced-search";
+
 export default function AdvancedSearchPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -35,6 +37,49 @@ export default function AdvancedSearchPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [isIndexing, setIsIndexing] = useState(false);
   const [error, setError] = useState("");
+  const [hasRestoredState, setHasRestoredState] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const queryFromUrl = params.get("q") || "";
+    const savedRaw = sessionStorage.getItem(SEARCH_STATE_KEY);
+    if (savedRaw) {
+      try {
+        const saved = JSON.parse(savedRaw);
+        setQuery(queryFromUrl || saved.query || "");
+        setResults(Array.isArray(saved.results) ? saved.results : []);
+        setIndexed(saved.indexed || null);
+        window.setTimeout(() => {
+          if (typeof saved.scrollY === "number") {
+            window.scrollTo({ top: saved.scrollY });
+          }
+        }, 0);
+      } catch {
+        setQuery(queryFromUrl);
+      }
+    } else {
+      setQuery(queryFromUrl);
+    }
+    setHasRestoredState(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasRestoredState) return;
+    sessionStorage.setItem(
+      SEARCH_STATE_KEY,
+      JSON.stringify({
+        query,
+        results,
+        indexed,
+        scrollY: window.scrollY,
+      })
+    );
+
+    const nextUrl = query.trim()
+      ? `/search?q=${encodeURIComponent(query.trim())}`
+      : "/search";
+    window.history.replaceState(null, "", nextUrl);
+  }, [hasRestoredState, indexed, query, results]);
 
   async function handleReindex() {
     setIsIndexing(true);
@@ -51,17 +96,30 @@ export default function AdvancedSearchPage() {
 
   async function handleSearch(event?: FormEvent) {
     event?.preventDefault();
-    if (!query.trim()) return;
+    const searchQuery = query.trim();
+    if (!searchQuery) return;
     setIsSearching(true);
     setError("");
     try {
-      const response = await semanticSearch({ query, top_k: 12 });
+      const response = await semanticSearch({ query: searchQuery, top_k: 12 });
       setResults(response.results || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to run semantic search");
     } finally {
       setIsSearching(false);
     }
+  }
+
+  function rememberSearchState() {
+    sessionStorage.setItem(
+      SEARCH_STATE_KEY,
+      JSON.stringify({
+        query,
+        results,
+        indexed,
+        scrollY: window.scrollY,
+      })
+    );
   }
 
   return (
@@ -155,6 +213,7 @@ export default function AdvancedSearchPage() {
                 <li key={result.chunk_id || `${result.patient_id}-${result.source_id}`}>
                   <Link
                     href={result.href}
+                    onClick={rememberSearchState}
                     className="block p-4 hover:bg-clinical-soft/60 transition"
                   >
                     <div className="flex items-start justify-between gap-4">

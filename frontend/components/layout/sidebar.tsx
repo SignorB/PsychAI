@@ -7,16 +7,12 @@ import {
   LayoutDashboard,
   Users,
   Calendar,
-  Lock,
   Settings,
   SearchCheck,
   ClipboardCheck,
-<<<<<<< HEAD
-  type LucideIcon,
-=======
   ChevronLeft,
-  ChevronRight
->>>>>>> f7f4370b (layout update)
+  ChevronRight,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -85,33 +81,24 @@ export function Sidebar({ pendingCount }: { pendingCount?: number }) {
                   : "text-white/70 hover:bg-white/10 hover:text-white"
               )}
             >
-<<<<<<< HEAD
-              <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
-              <span className="flex-1">{item.label}</span>
-              {item.href === "/pending" && pendingCount ? (
-                <Badge variant="primary" className="h-5 min-w-5 justify-center px-1.5">
+              <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+              {!isCollapsed && <span className="flex-1 truncate">{item.label}</span>}
+              {!isCollapsed && (item.href === "/pending" && pendingCount ? (
+                <Badge variant="primary" className="h-5 min-w-5 justify-center px-1.5 shrink-0">
                   {pendingCount}
                 </Badge>
               ) : item.badge ? (
-                <Badge variant="primary" className="h-5 min-w-5 justify-center px-1.5">
-=======
-              <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-              {!isCollapsed && <span className="flex-1 truncate">{item.label}</span>}
-              {!isCollapsed && item.badge && (
                 <Badge variant="primary" className="h-5 min-w-5 justify-center px-1.5 shrink-0">
->>>>>>> f7f4370b (layout update)
                   {item.badge}
                 </Badge>
-              )}
-              {isCollapsed && item.badge && (
+              ) : null)}
+              {isCollapsed && ((item.href === "/pending" && pendingCount) || item.badge) && (
                 <div className="absolute top-2 right-2 h-2 w-2 rounded-full bg-amber-500" />
               )}
             </Link>
           );
         })}
       </nav>
-<<<<<<< HEAD
-=======
 
       <div className="px-3 py-4 border-t border-white/10 flex flex-col gap-1">
         <Link
@@ -143,7 +130,6 @@ export function Sidebar({ pendingCount }: { pendingCount?: number }) {
           )}
         </button>
       </div>
->>>>>>> f7f4370b (layout update)
     </aside>
   );
 }
