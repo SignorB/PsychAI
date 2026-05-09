@@ -33,9 +33,13 @@ type RecapResponse = {
 export function DashboardPreSessionRecap({
   patient,
   session,
+  showPatientLink = true,
+  className,
 }: {
   patient?: PatientSummary | null;
   session?: SessionSummary | null;
+  showPatientLink?: boolean;
+  className?: string;
 }) {
   const [recap, setRecap] = useState<RecapResponse | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -57,7 +61,7 @@ export function DashboardPreSessionRecap({
 
   if (!patient || !session) {
     return (
-      <CardContent className="flex-1 flex items-center justify-center text-sm text-[#848484]">
+      <CardContent className={cn("flex-1 flex items-center justify-center text-sm text-[#848484]", className)}>
         No scheduled session available.
       </CardContent>
     );
@@ -69,7 +73,7 @@ export function DashboardPreSessionRecap({
   const isRevealed = Boolean(answer);
 
   return (
-    <CardContent className="flex-1 flex flex-col relative">
+    <CardContent className={cn("flex-1 flex flex-col relative", className)}>
       <div
         className={cn(
           "space-y-6 flex-1 flex flex-col transition-all duration-700 ease-in-out",
@@ -142,14 +146,16 @@ export function DashboardPreSessionRecap({
           </div>
         )}
 
-        <div className="pt-2 mt-auto">
-          <Link href={`/patients/${patient.id}`} className="block pointer-events-auto">
-            <Button variant="outline" className="w-full bg-white justify-center gap-2 h-11 text-clinical-ink font-medium border-clinical-border">
-              Open patient card
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
-        </div>
+        {showPatientLink && (
+          <div className="pt-2 mt-auto">
+            <Link href={`/patients/${patient.id}`} className="block pointer-events-auto">
+              <Button variant="outline" className="w-full bg-white justify-center gap-2 h-11 text-clinical-ink font-medium border-clinical-border">
+                Open patient card
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
 
       {!isRevealed && (

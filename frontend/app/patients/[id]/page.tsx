@@ -30,8 +30,8 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { getPatient, getPatientSessions } from "@/lib/api";
-import { RevealOverlay } from "@/components/ui/reveal-overlay";
 import StartSessionButton from "./StartSessionButton";
+import { DashboardPreSessionRecap } from "../../DashboardPreSessionRecap";
 
 export default async function PatientCard({ params }: { params: { id: string } }) {
   let pData: any = null;
@@ -308,46 +308,17 @@ export default async function PatientCard({ params }: { params: { id: string } }
                     )}
                   </CardDescription>
                 </CardHeader>
-                  <CardContent className="flex-1 flex flex-col relative min-h-[260px]">
-                    <RevealOverlay disabled={!pNextAppointment} disabledMessage="No upcoming appointment">
-                      <div className="space-y-6 flex-1 flex flex-col">
-                        <div>
-                          <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium mb-2.5">
-                            Themes from last 3 sessions
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="outline" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Avoidance</Badge>
-                            <Badge variant="outline" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Catastrophic thinking</Badge>
-                            <Badge variant="outline" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Self-image</Badge>
-                          </div>
-                        </div>
-
-                        <div>
-                          <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium mb-2.5">
-                            Open items
-                          </p>
-                          <div className="flex items-start gap-2.5 text-[14px] text-clinical-ink">
-                            <CheckCircle2 className="h-4 w-4 text-[#848484] mt-0.5 shrink-0" strokeWidth={1.75} />
-                            <span>Attend one tutorial without leaving early</span>
-                          </div>
-                        </div>
-
-                        <div className="flex-1">
-                          <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium mb-2.5">
-                            Unresolved
-                          </p>
-                          <div className="flex items-start gap-2.5 text-[14px] text-clinical-ink">
-                            <AlertTriangle className="h-4 w-4 text-[#E67E22] mt-0.5 shrink-0" strokeWidth={1.75} />
-                            <span>Disclosure to academic advisor</span>
-                          </div>
-                        </div>
-
-                        <p className="text-[11px] text-[#848484] text-center mt-4">
-                          Generated locally via RAG · patient history indexed
-                        </p>
-                      </div>
-                    </RevealOverlay>
-                  </CardContent>
+                  <DashboardPreSessionRecap
+                    patient={{
+                      id: Number(pId),
+                      name: pData.name,
+                      surname: pData.surname,
+                      condition: pData.condition,
+                    }}
+                    session={nextSession}
+                    showPatientLink={false}
+                    className="min-h-[260px]"
+                  />
                 </Card>
             </div>
           </div>
