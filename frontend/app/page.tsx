@@ -173,7 +173,6 @@ export default async function DashboardPage() {
           <DashboardPreSessionRecap
             patient={nextPatient || null}
             session={nextSession}
-            patientCount={patients.length}
           />
         </Card>
       </div>

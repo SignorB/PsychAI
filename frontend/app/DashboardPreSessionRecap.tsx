@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
 import { generatePreSessionRecap } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 type PatientSummary = {
   id: number;
@@ -26,18 +27,15 @@ type RecapResponse = {
   recap?: {
     answer?: string;
     citations?: string[];
-    uncertainties?: string[];
   };
 };
 
 export function DashboardPreSessionRecap({
   patient,
   session,
-  patientCount,
 }: {
   patient?: PatientSummary | null;
   session?: SessionSummary | null;
-  patientCount: number;
 }) {
   const [recap, setRecap] = useState<RecapResponse | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -68,11 +66,16 @@ export function DashboardPreSessionRecap({
   const patientName = [patient.name, patient.surname].filter(Boolean).join(" ") || `Patient ${patient.id}`;
   const answer = recap?.recap?.answer?.trim();
   const previousSessionId = recap?.previous_session_id;
-  const uncertainties = recap?.recap?.uncertainties || [];
+  const isRevealed = Boolean(answer);
 
   return (
-    <CardContent className="flex-1 flex flex-col">
-      <div className="space-y-6 flex-1 flex flex-col">
+    <CardContent className="flex-1 flex flex-col relative">
+      <div
+        className={cn(
+          "space-y-6 flex-1 flex flex-col transition-all duration-700 ease-in-out",
+          !isRevealed && "blur-[5px] opacity-40 select-none pointer-events-none"
+        )}
+      >
         {answer ? (
           <>
             <div>
@@ -83,22 +86,6 @@ export function DashboardPreSessionRecap({
                 {answer}
               </p>
             </div>
-
-            {uncertainties.length > 0 && (
-              <div>
-                <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium mb-2.5">
-                  Uncertainties
-                </p>
-                <div className="space-y-2">
-                  {uncertainties.map((item) => (
-                    <div key={item} className="flex items-start gap-2.5 text-[14px] text-clinical-ink">
-                      <AlertCircle className="h-4 w-4 text-[#E67E22] mt-0.5 shrink-0" strokeWidth={1.75} />
-                      <span>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             <div className="flex flex-wrap gap-2">
               <Badge variant="default" className="bg-clinical-soft text-clinical-ink font-medium px-3 py-1">
@@ -155,15 +142,7 @@ export function DashboardPreSessionRecap({
           </div>
         )}
 
-        <div className="pt-2 mt-auto space-y-2">
-          <Button
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className="w-full justify-center gap-2 h-11"
-          >
-            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {isGenerating ? "Generating recap..." : answer ? "Regenerate recap" : "Generate Recap"}
-          </Button>
+        <div className="pt-2 mt-auto">
           <Link href={`/patients/${patient.id}`} className="block pointer-events-auto">
             <Button variant="outline" className="w-full bg-white justify-center gap-2 h-11 text-clinical-ink font-medium border-clinical-border">
               Open patient card
@@ -171,11 +150,20 @@ export function DashboardPreSessionRecap({
             </Button>
           </Link>
         </div>
-
-        <p className="text-[11px] text-[#848484] text-center mt-4">
-          Generated locally via RAG · {patientCount} patients indexed
-        </p>
       </div>
+
+      {!isRevealed && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center">
+          <Button
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="gap-2.5 shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition-all rounded-full px-6 bg-clinical-brand text-white font-medium"
+          >
+            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {isGenerating ? "Generating recap..." : "Generate Recap"}
+          </Button>
+        </div>
+      )}
     </CardContent>
   );
 }

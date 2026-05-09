@@ -523,12 +523,10 @@ def _patient_index_text(patient: Patient) -> str:
 
 
 def _session_index_text(therapy_session: TherapySession) -> str:
-    # Safely extract just the date part (YYYY-MM-DD) if it's an ISO string
-    date_only = therapy_session.date.split("T")[0] if "T" in therapy_session.date else therapy_session.date
     return "\n".join(
         part
         for part in [
-            f"Seduta del {date_only}",
+            f"Seduta del {_date_only(therapy_session.date)}",
             f"Trascrizione:\n{therapy_session.transcript}" if therapy_session.transcript else "",
             f"Nota clinica:\n{therapy_session.clinical_note}" if therapy_session.clinical_note else "",
         ]
@@ -593,3 +591,9 @@ def _pre_session_recap_chunks(
             }
         )
     return chunks
+
+
+def _date_only(value: str | None) -> str:
+    if not value:
+        return ""
+    return value.split("T", 1)[0]
