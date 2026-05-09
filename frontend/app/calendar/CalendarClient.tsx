@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -10,6 +11,7 @@ import {
   MapPin,
   Clock,
   Calendar as CalendarIcon,
+  Loader2,
 } from "lucide-react";
 import {
   Card,
@@ -19,6 +21,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { createPatientSession } from "@/lib/api";
 
 const HOURS = Array.from({ length: 11 }, (_, i) => 8 + i); // 8am - 6pm
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -50,9 +61,51 @@ const defaultAvailability: Availability = {
   Sun: { start: "10:00", end: "14:00", on: false },
 };
 
-export default function CalendarClient({ initialSessions }: { initialSessions: any[] }) {
+export default function CalendarClient({
+  initialSessions,
+  initialPatients = [],
+}: {
+  initialSessions: any[];
+  initialPatients?: any[];
+}) {
+  const router = useRouter();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [availability, setAvailability] = useState<Availability>(defaultAvailability);
+
+  const [isNewOpen, setIsNewOpen] = useState(false);
+  const [newPatientId, setNewPatientId] = useState("");
+  const [newDate, setNewDate] = useState("");
+  const [newStartTime, setNewStartTime] = useState("");
+  const [newEndTime, setNewEndTime] = useState("");
+  const [patientSearchQuery, setPatientSearchQuery] = useState("");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleCreateSession(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newPatientId || !newDate || !newStartTime) return;
+    try {
+      setIsSubmitting(true);
+      const isoDate = new Date(`${newDate}T${newStartTime}:00`).toISOString();
+      await createPatientSession(newPatientId, {
+        date: isoDate,
+        start_time: newStartTime,
+        end_time: newEndTime || undefined,
+      });
+      setIsNewOpen(false);
+      setNewPatientId("");
+      setPatientSearchQuery("");
+      setNewDate("");
+      setNewStartTime("");
+      setNewEndTime("");
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      alert("Failed to create appointment");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   const days = useMemo(
     () =>
@@ -92,7 +145,7 @@ export default function CalendarClient({ initialSessions }: { initialSessions: a
               No sessions scheduled yet
             </p>
           </div>
-          <Button>
+          <Button onClick={() => setIsNewOpen(true)}>
             <Plus className="h-4 w-4 mr-2" /> New appointment
           </Button>
         </div>
@@ -105,7 +158,7 @@ export default function CalendarClient({ initialSessions }: { initialSessions: a
           <p className="text-sm text-[#848484] mt-2 mb-8 text-center max-w-md leading-relaxed">
             There are no past or upcoming sessions across any patients. Your schedule will appear here once you book an appointment.
           </p>
-          <Button size="lg">
+          <Button size="lg" onClick={() => setIsNewOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Schedule First Session
           </Button>
@@ -125,7 +178,7 @@ export default function CalendarClient({ initialSessions }: { initialSessions: a
             Weekly view · click an appointment to open the patient card
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setIsNewOpen(true)}>
           <Plus className="h-4 w-4 mr-2" /> New appointment
         </Button>
       </div>
@@ -238,20 +291,30 @@ export default function CalendarClient({ initialSessions }: { initialSessions: a
                         const minutes =
                           start.getHours() * 60 + start.getMinutes();
                         const top = ((minutes - HOURS[0] * 60) / 60) * 64;
-                        const height = ((a.durationMin || 60) / 60) * 64;
+                        
+                        let durationMin = a.durationMin || 60;
+                        if (!a.durationMin && a.start_time && a.end_time) {
+                          const [sh, sm] = a.start_time.split(":").map(Number);
+                          const [eh, em] = a.end_time.split(":").map(Number);
+                          durationMin = (eh * 60 + em) - (sh * 60 + sm);
+                        }
+                        const height = (durationMin / 60) * 64;
                         const pId = a.patientId || a.patient_id;
                         
                         if (top < 0 || top > HOURS.length * 64) return null;
                         
+                        const patient = initialPatients?.find((p) => p.id === pId || p.id === parseInt(pId));
+                        const patientName = patient ? `${patient.name} ${patient.surname}` : `Patient ${pId}`;
+                        
                         return (
                           <Link
                             key={a.id || Math.random()}
-                            href={`/patients/${pId}`}
+                            href={`/patients/${pId}/sessions/${a.id}`}
                             className="absolute left-1 right-1 rounded-md bg-white border border-clinical-border hover:border-[#848484]/60 hover:shadow-sm transition p-2 overflow-hidden"
                             style={{ top, height }}
                           >
                             <p className="text-[11px] font-medium text-clinical-ink truncate">
-                              Patient {pId}
+                              {patientName}
                             </p>
                             <p className="text-[10px] text-[#848484] flex items-center gap-1 mt-0.5">
                               <Clock className="h-2.5 w-2.5" />
@@ -362,6 +425,136 @@ export default function CalendarClient({ initialSessions }: { initialSessions: a
           </Card>
         </div>
       </div>
+
+      <Dialog open={isNewOpen} onOpenChange={(val) => {
+        setIsNewOpen(val);
+        if (!val) {
+          setNewPatientId("");
+          setPatientSearchQuery("");
+        }
+      }}>
+        <DialogContent>
+          <form onSubmit={handleCreateSession}>
+            <DialogHeader>
+              <DialogTitle>New appointment</DialogTitle>
+              <DialogDescription>
+                Schedule a new session for a patient.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-clinical-ink">
+                  Patient <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required={!newPatientId}
+                    placeholder="Search patient..."
+                    value={patientSearchQuery}
+                    onChange={(e) => {
+                      setPatientSearchQuery(e.target.value);
+                      setNewPatientId("");
+                      setIsDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)}
+                    className="w-full h-9 px-3 rounded-md border border-clinical-border bg-white text-sm text-clinical-ink focus:outline-none focus:ring-2 focus:ring-clinical-ink/20"
+                  />
+                  {isDropdownOpen && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-clinical-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {initialPatients
+                        ?.filter((p) =>
+                          `${p.name} ${p.surname}`
+                            .toLowerCase()
+                            .includes(patientSearchQuery.toLowerCase())
+                        )
+                        .map((p) => (
+                          <div
+                            key={p.id}
+                            className="px-3 py-2 text-sm cursor-pointer hover:bg-clinical-soft"
+                            onClick={() => {
+                              setNewPatientId(String(p.id));
+                              setPatientSearchQuery(`${p.name} ${p.surname}`.trim());
+                              setIsDropdownOpen(false);
+                            }}
+                          >
+                            {p.name} {p.surname}
+                          </div>
+                        ))}
+                      {initialPatients?.filter((p) =>
+                        `${p.name} ${p.surname}`
+                          .toLowerCase()
+                          .includes(patientSearchQuery.toLowerCase())
+                      ).length === 0 && (
+                        <div className="px-3 py-2 text-sm text-[#848484]">
+                          No patients found
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-clinical-ink">
+                  Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                  className="w-full h-9 px-3 rounded-md border border-clinical-border bg-white text-sm text-clinical-ink focus:outline-none focus:ring-2 focus:ring-clinical-ink/20"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-clinical-ink">
+                    Start time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={newStartTime}
+                    onChange={(e) => setNewStartTime(e.target.value)}
+                    className="w-full h-9 px-3 rounded-md border border-clinical-border bg-white text-sm text-clinical-ink focus:outline-none focus:ring-2 focus:ring-clinical-ink/20"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-clinical-ink">
+                    End time
+                  </label>
+                  <input
+                    type="time"
+                    value={newEndTime}
+                    onChange={(e) => setNewEndTime(e.target.value)}
+                    className="w-full h-9 px-3 rounded-md border border-clinical-border bg-white text-sm text-clinical-ink focus:outline-none focus:ring-2 focus:ring-clinical-ink/20"
+                  />
+                  <p className="text-[10px] text-[#848484]">
+                    Leave empty for default 1h duration.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsNewOpen(false)}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {isSubmitting ? "Creating..." : "Create appointment"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

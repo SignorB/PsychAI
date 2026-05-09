@@ -65,13 +65,18 @@ export async function createPatient(payload: {
   return res.json();
 }
 
-export async function createPatientSession(patientId: string) {
+export async function createPatientSession(patientId: string, payload?: {
+  date: string;
+  start_time: string;
+  end_time?: string;
+}) {
   const API_URL = getApiUrl();
   const res = await fetch(`${API_URL}/patients/${patientId}/sessions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
+    body: payload ? JSON.stringify(payload) : undefined,
   });
   if (!res.ok) throw new Error("Failed to create session");
   return res.json();

@@ -22,6 +22,12 @@ def _split_env_list(name: str, default: list[str]) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+class SessionCreateRequest(BaseModel):
+    date: str
+    start_time: str
+    end_time: str | None = None
+
+
 class SessionNoteRequest(BaseModel):
     transcript: str | None = None
     manual_notes: list[str] = []
@@ -137,14 +143,33 @@ def get_sessions(patient_id: int, session: Session = Depends(get_session)):
     return {"patient_id": patient_id, "sessions": patient.sessions}
 
 @app.post("/patients/{patient_id}/sessions", response_model=TherapySession)
-def create_session(patient_id: int, session: Session = Depends(get_session)):
+def create_session(patient_id: int, request: SessionCreateRequest | None = None, session: Session = Depends(get_session)):
     """Create a new session for a specific patient."""
     patient = session.get(Patient, patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     
+    session_date = datetime.utcnow().isoformat() + "Z"
+    start_time = None
+    end_time = None
+    
+    if request:
+        session_date = request.date
+        start_time = request.start_time
+        end_time = request.end_time
+        if not end_time:
+            # Default to 1 hour later
+            try:
+                sh, sm = map(int, start_time.split(':'))
+                eh = (sh + 1) % 24
+                end_time = f"{eh:02d}:{sm:02d}"
+            except Exception:
+                pass
+    
     new_session = TherapySession(
-        date=datetime.utcnow().isoformat() + "Z",
+        date=session_date,
+        start_time=start_time,
+        end_time=end_time,
         transcript=patient.intake_notes or "",
         patient_id=patient.id
     )
