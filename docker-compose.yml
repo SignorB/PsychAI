@@ -57,9 +57,11 @@ services:
       WHISPER_CPP_EXECUTABLE: /opt/whisper.cpp/whisper-cli
       WHISPER_CPP_MODEL_PATH: /models/whisper/ggml-base.bin
       WHISPER_CPP_LANGUAGE: it
+      VECTOR_STORE_PATH: /data/vector_index.sqlite
     volumes:
       - whisper-models:/models/whisper
       - session-audio:/data/audio
+      - vector-index:/data
     expose:
       - "8010"
     depends_on:
@@ -96,3 +98,4 @@ volumes:
   ollama-data:
   whisper-models:
   session-audio:
+  vector-index:

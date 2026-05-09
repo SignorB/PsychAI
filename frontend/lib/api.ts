@@ -149,3 +149,40 @@ export async function askPatient(patientId: string, question: string) {
   }
   return res.json();
 }
+
+export async function reindexSearchSources() {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/search/reindex`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to reindex search sources: ${text}`);
+  }
+  return res.json();
+}
+
+export async function semanticSearch(payload: {
+  query: string;
+  patient_id?: number;
+  top_k?: number;
+  model_profile?: string;
+}) {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/search/semantic`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model_profile: "qwen",
+      top_k: 10,
+      ...payload,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to run semantic search: ${text}`);
+  }
+  return res.json();
+}

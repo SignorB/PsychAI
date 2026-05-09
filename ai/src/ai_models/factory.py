@@ -4,7 +4,6 @@ from .ollama_provider import OllamaEmbeddingProvider, OllamaLLMProvider
 from .pipeline import ClinicalAIPipeline
 from .profiles import build_model_profile
 from .providers import SpeechToTextProvider, VectorStore
-from .vector_store import InMemoryVectorStore
 
 
 def build_ollama_pipeline(
@@ -29,5 +28,5 @@ def build_ollama_pipeline(
             model=config.embeddings.model,
             base_url=config.embeddings.base_url,
         ),
-        vector_store=vector_store or InMemoryVectorStore(),
+        vector_store=vector_store,
     )

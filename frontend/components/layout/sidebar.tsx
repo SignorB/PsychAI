@@ -8,15 +8,22 @@ import {
   Calendar,
   Lock,
   Settings,
-  StickyNote,
   SearchCheck,
   ClipboardCheck,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 
-const nav = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: string | number;
+};
+
+const nav: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/patients", label: "Patients", icon: Users },
   { href: "/calendar", label: "Calendar", icon: Calendar },

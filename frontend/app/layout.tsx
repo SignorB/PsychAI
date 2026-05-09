@@ -17,6 +17,8 @@ export const metadata: Metadata = {
     "A 100% local AI assistant that frees clinicians from documentation so they can focus on human connection.",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function RootLayout({
   children,
 }: {

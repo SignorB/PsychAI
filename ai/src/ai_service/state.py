@@ -12,7 +12,7 @@ from src.ai_models.profiles import build_model_profile, list_model_profiles
 from src.ai_models.prompts import RAG_SYSTEM_PROMPT, build_rag_user_prompt
 from src.ai_models.providers import SpeechToTextProvider
 from src.ai_models.schemas import ClinicalSessionNote, RAGAnswer, RetrievedChunk, TextChunk, Transcript
-from src.ai_models.vector_store import InMemoryVectorStore
+from src.ai_models.vector_store import InMemoryVectorStore, SQLiteVectorStore
 from src.ai_models.whisper_cpp_provider import WhisperCppError, WhisperCppSpeechToTextProvider
 
 from .schemas import (
@@ -53,6 +53,13 @@ def build_default_speech_to_text_provider() -> SpeechToTextProvider:
     )
 
 
+def build_default_vector_store():
+    path = os.getenv("VECTOR_STORE_PATH")
+    if path:
+        return SQLiteVectorStore(path)
+    return InMemoryVectorStore()
+
+
 class AIServiceState:
     def __init__(
         self,
@@ -63,7 +70,7 @@ class AIServiceState:
     ) -> None:
         self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         self.speech_to_text = speech_to_text or build_default_speech_to_text_provider()
-        self.vector_store = vector_store or InMemoryVectorStore()
+        self.vector_store = vector_store or build_default_vector_store()
         self._pipelines = {}
 
     def models(self) -> ModelsResponse:

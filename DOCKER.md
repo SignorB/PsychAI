@@ -60,6 +60,28 @@ I modelli restano nei volumi Docker:
 - `ollama-data`
 - `whisper-models`
 
+## Vector index persistente
+
+La ricerca avanzata usa embeddings locali e salva l'indice in SQLite dentro il
+volume Docker:
+
+- `vector-index`
+
+Il file interno e:
+
+```text
+/data/vector_index.sqlite
+```
+
+Per popolare o aggiornare l'indice apri la pagina:
+
+```text
+http://home:3000/search
+```
+
+e usa `Build / refresh index`. L'indice viene aggiornato con `INSERT OR REPLACE`,
+quindi puoi rilanciare il refresh senza duplicare chunk gia indicizzati.
+
 ## Debug opzionale
 
 Se vuoi ispezionare un servizio interno:

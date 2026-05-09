@@ -69,9 +69,10 @@ def index_patient_source(
     source_type: str,
     text: str,
     session_id: int | None = None,
+    metadata: dict[str, Any] | None = None,
     model_profile: str = "qwen",
 ) -> dict[str, Any]:
-    metadata: dict[str, Any] = {}
+    metadata = dict(metadata or {})
     if session_id is not None:
         metadata["session_id"] = str(session_id)
     return _post(
@@ -83,6 +84,26 @@ def index_patient_source(
             "source_type": source_type,
             "text": text,
             "metadata": metadata,
+        },
+        timeout=120,
+    )
+
+
+def semantic_search(
+    *,
+    patient_id: int,
+    query: str,
+    model_profile: str = "qwen",
+    top_k: int = 5,
+) -> dict[str, Any]:
+    return _post(
+        "/ai/v1/search/semantic",
+        {
+            "model_profile": model_profile,
+            "patient_id": str(patient_id),
+            "query": query,
+            "top_k": top_k,
+            "filters": {},
         },
         timeout=120,
     )

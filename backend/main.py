@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from database import create_db_and_tables, get_session, seed_database
 from models import Patient, TherapySession
-from ai_client import AIServiceClientError, ai_health, ask_patient, draft_session_note, index_patient_source, transcribe_audio
+from ai_client import AIServiceClientError, ai_health, ask_patient, draft_session_note, index_patient_source, semantic_search, transcribe_audio
 
 
 def _split_env_list(name: str, default: list[str]) -> list[str]:
@@ -32,6 +32,13 @@ class PatientQuestionRequest(BaseModel):
     question: str
     model_profile: str = "qwen"
     top_k: int = 5
+
+
+class SemanticSearchRequest(BaseModel):
+    query: str
+    patient_id: int | None = None
+    model_profile: str = "qwen"
+    top_k: int = 10
 
 
 AUDIO_UPLOAD_DIR = Path(os.getenv("AUDIO_UPLOAD_DIR", "/data/audio"))
@@ -299,3 +306,135 @@ def ask_patient_history(
     except AIServiceClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return answer
+
+
+@app.post("/search/reindex")
+def reindex_search_sources(session: Session = Depends(get_session)):
+    patients = session.exec(select(Patient)).all()
+    sessions = session.exec(select(TherapySession)).all()
+    indexed_sources = 0
+    indexed_chunks = 0
+
+    try:
+        for patient in patients:
+            text = _patient_index_text(patient)
+            if text.strip():
+                result = index_patient_source(
+                    patient_id=patient.id,
+                    source_id=f"patient_{patient.id}",
+                    source_type="written_annotation",
+                    text=text,
+                    metadata={
+                        "record_type": "patient",
+                        "patient_name": _patient_display_name(patient),
+                    },
+                )
+                indexed_sources += 1
+                indexed_chunks += result.get("chunk_count", 0)
+
+        for therapy_session in sessions:
+            text = _session_index_text(therapy_session)
+            if text.strip() and therapy_session.patient_id:
+                result = index_patient_source(
+                    patient_id=therapy_session.patient_id,
+                    source_id=f"session_{therapy_session.id}",
+                    source_type="clinical_summary",
+                    text=text,
+                    session_id=therapy_session.id,
+                    metadata={
+                        "record_type": "session",
+                        "session_date": therapy_session.date,
+                    },
+                )
+                indexed_sources += 1
+                indexed_chunks += result.get("chunk_count", 0)
+    except AIServiceClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {
+        "indexed_sources": indexed_sources,
+        "indexed_chunks": indexed_chunks,
+        "patient_count": len(patients),
+        "session_count": len(sessions),
+    }
+
+
+@app.post("/search/semantic")
+def search_semantic(request: SemanticSearchRequest, session: Session = Depends(get_session)):
+    query = request.query.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Search query is required")
+
+    if request.patient_id is not None:
+        patient = session.get(Patient, request.patient_id)
+        patients = [patient] if patient else []
+    else:
+        patients = session.exec(select(Patient)).all()
+
+    results = []
+    per_patient_k = max(request.top_k, 3)
+    try:
+        for patient in patients:
+            response = semantic_search(
+                patient_id=patient.id,
+                query=query,
+                model_profile=request.model_profile,
+                top_k=per_patient_k,
+            )
+            for item in response.get("results", []):
+                chunk = item.get("chunk", {})
+                metadata = chunk.get("metadata", {})
+                session_id = metadata.get("session_id")
+                href = f"/patients/{patient.id}"
+                if session_id:
+                    href = f"/patients/{patient.id}/sessions/{session_id}"
+                results.append(
+                    {
+                        "patient_id": patient.id,
+                        "patient_name": _patient_display_name(patient),
+                        "source_id": chunk.get("source_id"),
+                        "chunk_id": chunk.get("chunk_id"),
+                        "source_type": metadata.get("source_type"),
+                        "record_type": metadata.get("record_type"),
+                        "session_id": session_id,
+                        "score": item.get("score", 0),
+                        "text": chunk.get("text", ""),
+                        "metadata": metadata,
+                        "href": href,
+                    }
+                )
+    except AIServiceClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    results.sort(key=lambda item: item["score"], reverse=True)
+    return {"query": query, "results": results[: request.top_k], "searched_patients": len(patients)}
+
+
+def _patient_display_name(patient: Patient) -> str:
+    return " ".join(part for part in [patient.name, patient.surname] if part).strip()
+
+
+def _patient_index_text(patient: Patient) -> str:
+    return "\n".join(
+        part
+        for part in [
+            f"Paziente: {_patient_display_name(patient)}",
+            f"Eta: {patient.age}" if patient.age else "",
+            f"Condizione: {patient.condition}" if patient.condition else "",
+            f"Note intake: {patient.intake_notes}" if patient.intake_notes else "",
+            f"Referral: {patient.referral_letter}" if patient.referral_letter else "",
+        ]
+        if part
+    )
+
+
+def _session_index_text(therapy_session: TherapySession) -> str:
+    return "\n".join(
+        part
+        for part in [
+            f"Seduta del {therapy_session.date}",
+            f"Trascrizione:\n{therapy_session.transcript}" if therapy_session.transcript else "",
+            f"Nota clinica:\n{therapy_session.clinical_note}" if therapy_session.clinical_note else "",
+        ]
+        if part
+    )

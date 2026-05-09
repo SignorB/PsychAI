@@ -14,10 +14,12 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { createPatient } from "@/lib/api";
 
+type PatientStatus = "Active" | "On hold" | "Discharged";
+
 export default function PatientsClient({ initialPatients }: { initialPatients: any[] }) {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"All" | "Active" | "On hold" | "Discharged">("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | PatientStatus>("All");
 
   // State for new patient modal
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
@@ -56,7 +58,7 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
       const name = p.name || `Patient ${p.patient_id || p.id}`;
       const concern = p.primaryConcern || p.condition || "";
       const diagnosis = p.diagnosis || [];
-      const status = p.is_active === false ? "Discharged" : "Active";
+      const status: PatientStatus = p.is_active === false ? "Discharged" : "Active";
 
       const matchesQ =
         !q ||
@@ -230,7 +232,7 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                   const id = p.id || p.patient_id;
                   const name = p.name || `Patient ${id}`;
                   const initials = p.initials || name.substring(0, 2).toUpperCase() || "PT";
-                  const status = p.is_active === false ? "Discharged" : "Active";
+                  const status: PatientStatus = p.is_active === false ? "Discharged" : "Active";
                   const totalSessions = p.total_sessions ?? p.sessions?.length ?? 0;
                   const riskFlags = p.riskFlags || [];
                   const age = p.age || "N/A";
@@ -278,8 +280,6 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                           variant={
                             status === "Active"
                               ? "success"
-                              : status === "On hold"
-                              ? "warning"
                               : "outline"
                           }
                         >
