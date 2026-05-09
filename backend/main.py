@@ -77,7 +77,12 @@ def health():
 def get_patients(session: Session = Depends(get_session)):
     """Retrieve all patients."""
     patients = session.exec(select(Patient)).all()
-    return {"patients": patients}
+    result = []
+    for p in patients:
+        p_dict = p.model_dump()
+        p_dict["total_sessions"] = len(p.sessions)
+        result.append(p_dict)
+    return {"patients": result}
 
 @app.post("/patients", response_model=Patient)
 def create_patient(patient: Patient, session: Session = Depends(get_session)):

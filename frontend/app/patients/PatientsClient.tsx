@@ -56,7 +56,7 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
       const name = p.name || `Patient ${p.patient_id || p.id}`;
       const concern = p.primaryConcern || p.condition || "";
       const diagnosis = p.diagnosis || [];
-      const status = p.status || "Active";
+      const status = p.is_active === false ? "Discharged" : "Active";
 
       const matchesQ =
         !q ||
@@ -220,7 +220,6 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                 <tr className="text-left text-[11px] uppercase tracking-wider text-[#848484] border-b border-clinical-border">
                   <th className="font-medium px-5 py-3">Patient</th>
                   <th className="font-medium px-3 py-3 hidden md:table-cell">Concern</th>
-                  <th className="font-medium px-3 py-3 hidden lg:table-cell">Modality</th>
                   <th className="font-medium px-3 py-3">Sessions</th>
                   <th className="font-medium px-3 py-3 hidden md:table-cell">Status</th>
                   <th className="font-medium px-5 py-3"></th>
@@ -231,7 +230,8 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                   const id = p.id || p.patient_id;
                   const name = p.name || `Patient ${id}`;
                   const initials = p.initials || name.substring(0, 2).toUpperCase() || "PT";
-                  const status = p.status || "Active";
+                  const status = p.is_active === false ? "Discharged" : "Active";
+                  const totalSessions = p.total_sessions ?? p.sessions?.length ?? 0;
                   const riskFlags = p.riskFlags || [];
                   const age = p.age || "N/A";
                   const pronouns = p.pronouns || "N/A";
@@ -270,11 +270,8 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                       <td className="px-3 py-3 hidden md:table-cell text-[#848484] max-w-[280px] truncate">
                         {p.primaryConcern || p.condition || "Not specified"}
                       </td>
-                      <td className="px-3 py-3 hidden lg:table-cell text-[#848484]">
-                        {p.modality || "N/A"}
-                      </td>
                       <td className="px-3 py-3 text-clinical-ink font-medium">
-                        {p.totalSessions || 0}
+                        {totalSessions}
                       </td>
                       <td className="px-3 py-3 hidden md:table-cell">
                         <Badge
@@ -302,7 +299,7 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-5 py-12 text-center text-sm text-[#848484]">
+                    <td colSpan={5} className="px-5 py-12 text-center text-sm text-[#848484]">
                       No patients match your filters.
                     </td>
                   </tr>
