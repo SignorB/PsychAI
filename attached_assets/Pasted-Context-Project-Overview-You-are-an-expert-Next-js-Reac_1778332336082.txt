@@ -1,0 +1,37 @@
+Context & Project Overview: You are an expert Next.js, React, and Tailwind CSS developer. Build the frontend for "PsychAI" , a 100% on-device local AI assistant for psychologists. The backend (FastAPI, Ollama, Vector DB) handles local LLM generation and Speech-to-Text, so your job is strictly to build a beautiful, functional, and responsive frontend UI using dummy mock data.
+Target User & Mission: The user is a freelance psychologist (30-55 years old) managing 10-30 patients weekly. The mission is to free clinicians from memorized documentation so they can focus on human connection. The UI must feel secure, private, clinical, and fast.
+Design System & Brand Identity:
+Typography: Use "DM Sans" (Bold and Regular) globally.
+Colors: Use #848484 as the base text/accent color. Build a clean, minimalist clinical palette around it (white backgrounds, soft gray borders, subtle muted primary colors for buttons).
+Vibe: Professional, reassuring, "Support, not replacement".
+Tech Stack Requirements:
+Next.js (App Router)
+Tailwind CSS
+Shadcn/UI (use standard components like Cards, Buttons, Dialogs, Tables, Tabs)
+Lucide React (for minimalist icons)
+Required Pages & Features:
+1. Main Dashboard (Today's View):
+A clean overview of today's appointments.
+Clicking an appointment should easily navigate to the specific Patient Card.
+Include a RAG-based "Pre-Session Recap" widget displaying a briefing for the next immediate appointment , showing open items and unresolved issues from previous sessions.
+2. Patients List & Patient Card:
+List View: A table or grid of all patients with quick links.
+Patient Card (Detail View):
+Profile Section: Demographics, clinical data, and initial intake notes.
+Meeting History / Timeline: A visual timeline of all past sessions.
+Session Detail View: When clicking a past session, show:
+The full raw STT transcript (simulating live background transcription parsing).
+The AI-generated Structured Clinical Note (Reason, Content, Observations, Therapeutic Plan).
+AI Highlights/Themes and a section for the psychologist's free voice/text notes.
+A clear visual indicator that the note requires "Mandatory Approval" before saving.
+Referral Letter Action: A button to generate a structured Referral Letter for psychiatrists/specialists. Must show a "Mandatory Revision" step before the final PDF export.
+3. Calendar & Scheduling Section:
+A calendar view showing all appointments.
+A simple UI component to set and manage the psychologist's weekly hourly availability.
+Action Plan for the AI Agent:
+Initialize a Next.js project with Tailwind CSS and the DM Sans font.
+Create a persistent Sidebar or Top Navbar for navigation (Dashboard, Patients, Calendar).
+Generate highly realistic ENGLISH mock data (e.g., patient names, psychological conditions like anxiety/CBT therapy, fake therapy transcripts, structured notes) so the application looks fully populated and ready for a pitch demo.
+Build the UI components focusing on a clean layout, using Shadcn/UI for a polished look.
+Do not write backend code; just simulate state and navigation.
+Please generate the complete file structure and code for this frontend.
