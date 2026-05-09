@@ -24,12 +24,19 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
   // State for new patient modal
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newPatient, setNewPatient] = useState({
+  const initialState = {
     name: "",
+    surname: "",
     age: "",
     condition: "",
+    address: "",
+    email: "",
+    phone: "",
+    is_active: true,
+    referral_letter: "",
     intake_notes: ""
-  });
+  };
+  const [newPatient, setNewPatient] = useState(initialState);
 
   const handleCreatePatient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,12 +44,18 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
     try {
       await createPatient({
         name: newPatient.name,
+        surname: newPatient.surname,
         age: parseInt(newPatient.age) || 0,
         condition: newPatient.condition,
+        address: newPatient.address,
+        email: newPatient.email,
+        phone: newPatient.phone,
+        is_active: newPatient.is_active,
+        referral_letter: newPatient.referral_letter,
         intake_notes: newPatient.intake_notes
       });
       setIsNewPatientOpen(false);
-      setNewPatient({ name: "", age: "", condition: "", intake_notes: "" });
+      setNewPatient(initialState);
       router.refresh(); // Tells Next.js to re-fetch Server Components
     } catch (err) {
       console.error(err);
@@ -72,55 +85,62 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
 
   const newPatientModal = (
     <Dialog open={isNewPatientOpen} onOpenChange={setIsNewPatientOpen}>
-      <DialogContent>
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Patient</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleCreatePatient} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-clinical-ink">Name</label>
-            <input
-              required
-              type="text"
-              value={newPatient.name}
-              onChange={e => setNewPatient({...newPatient, name: e.target.value})}
-              className="w-full h-10 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484]"
-              placeholder="e.g. John Doe"
-            />
+        <form onSubmit={handleCreatePatient} className="space-y-4 pb-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-clinical-ink">Name *</label>
+              <input required type="text" value={newPatient.name} onChange={e => setNewPatient({...newPatient, name: e.target.value})} className="w-full h-10 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484]" placeholder="e.g. John" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-clinical-ink">Surname</label>
+              <input type="text" value={newPatient.surname} onChange={e => setNewPatient({...newPatient, surname: e.target.value})} className="w-full h-10 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484]" placeholder="e.g. Doe" />
+            </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-clinical-ink">Age</label>
-            <input
-              required
-              type="number"
-              value={newPatient.age}
-              onChange={e => setNewPatient({...newPatient, age: e.target.value})}
-              className="w-full h-10 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484]"
-              placeholder="e.g. 35"
-            />
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-clinical-ink">Age *</label>
+              <input required type="number" value={newPatient.age} onChange={e => setNewPatient({...newPatient, age: e.target.value})} className="w-full h-10 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484]" placeholder="e.g. 35" />
+            </div>
+            <div className="space-y-2 flex flex-col justify-end pb-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={newPatient.is_active} onChange={e => setNewPatient({...newPatient, is_active: e.target.checked})} className="w-4 h-4 rounded border-clinical-border text-clinical-brand focus:ring-clinical-brand" />
+                <span className="text-sm font-medium text-clinical-ink">Active Patient</span>
+              </label>
+            </div>
           </div>
+
           <div className="space-y-2">
-            <label className="text-sm font-medium text-clinical-ink">Condition / Primary Concern</label>
-            <input
-              required
-              type="text"
-              value={newPatient.condition}
-              onChange={e => setNewPatient({...newPatient, condition: e.target.value})}
-              className="w-full h-10 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484]"
-              placeholder="e.g. Social Anxiety"
-            />
+            <label className="text-sm font-medium text-clinical-ink">Condition / Primary Concern *</label>
+            <input required type="text" value={newPatient.condition} onChange={e => setNewPatient({...newPatient, condition: e.target.value})} className="w-full h-10 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484]" placeholder="e.g. Social Anxiety" />
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-clinical-ink">Email</label>
+              <input type="email" value={newPatient.email} onChange={e => setNewPatient({...newPatient, email: e.target.value})} className="w-full h-10 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484]" placeholder="e.g. john@example.com" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-clinical-ink">Phone</label>
+              <input type="tel" value={newPatient.phone} onChange={e => setNewPatient({...newPatient, phone: e.target.value})} className="w-full h-10 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484]" placeholder="e.g. +1 555-1234" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-clinical-ink">Address</label>
+            <input type="text" value={newPatient.address} onChange={e => setNewPatient({...newPatient, address: e.target.value})} className="w-full h-10 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484]" placeholder="e.g. 123 Main St" />
+          </div>
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-clinical-ink">Intake Notes</label>
-            <textarea
-              rows={4}
-              value={newPatient.intake_notes}
-              onChange={e => setNewPatient({...newPatient, intake_notes: e.target.value})}
-              className="w-full py-2 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484] resize-none"
-              placeholder="Initial observations..."
-            />
+            <textarea rows={3} value={newPatient.intake_notes} onChange={e => setNewPatient({...newPatient, intake_notes: e.target.value})} className="w-full py-2 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484] resize-none" placeholder="Initial observations..." />
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="pt-4">
             <Button type="button" variant="outline" onClick={() => setIsNewPatientOpen(false)}>
               Cancel
             </Button>
