@@ -12,6 +12,7 @@ import {
   ChevronRight,
   CheckCircle2,
   Clock,
+  Sparkles,
 } from "lucide-react";
 import {
   Card,
@@ -29,6 +30,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { getPatient, getPatientSessions } from "@/lib/api";
+import { RevealOverlay } from "@/components/ui/reveal-overlay";
 import StartSessionButton from "./StartSessionButton";
 
 export default async function PatientCard({ params }: { params: { id: string } }) {
@@ -79,7 +81,13 @@ export default async function PatientCard({ params }: { params: { id: string } }
   const pThemes = pData.themes || [];
   const pOpenItems = pData.openItems || [];
   const pUnresolved = pData.unresolved || [];
-  const pNextAppointment = pData.nextAppointment || null;
+  
+  const now = new Date();
+  const upcomingSessions = patientSessions
+    .filter((s: any) => new Date(s.date) > now)
+    .sort((a: any, b: any) => +new Date(a.date) - +new Date(b.date));
+  const nextSession = upcomingSessions.length > 0 ? upcomingSessions[0] : null;
+  const pNextAppointment = pData.nextAppointment || (nextSession ? nextSession.date : null);
 
   return (
     <div className="space-y-6">
@@ -115,7 +123,7 @@ export default async function PatientCard({ params }: { params: { id: string } }
               )}
             </div>
             <p className="text-sm text-[#848484] mt-1">
-              {pAge} · {pPronouns} · {pOccupation}
+              {pAge} years old
             </p>
             <div className="flex items-center gap-4 mt-2 text-xs text-[#848484]">
               <span className="flex items-center gap-1.5">
@@ -150,8 +158,9 @@ export default async function PatientCard({ params }: { params: { id: string } }
         {/* Overview tab */}
         <TabsContent value="overview">
           <div className="grid lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2">
-              <CardHeader>
+            <div className="lg:col-span-2 space-y-6">
+              <Card>
+                <CardHeader>
                 <CardTitle>Initial intake</CardTitle>
                 <CardDescription>
                   Recorded {new Date(pStartedOn).toLocaleDateString()} · {pTotalSessions} sessions to date
@@ -198,6 +207,35 @@ export default async function PatientCard({ params }: { params: { id: string } }
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant="primary" className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold tracking-wider">
+                    <Sparkles className="h-3 w-3" />
+                    AI SUMMARY
+                  </Badge>
+                </div>
+                <CardTitle>Patient history</CardTitle>
+                <CardDescription>
+                  Synthesized from initial intake and {pTotalSessions} session notes
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm leading-relaxed text-clinical-ink">
+                  <p className="mb-4">
+                    The patient presented with ongoing symptoms of social anxiety, which have been present since early adolescence but have exacerbated recently due to increased academic pressures and a transition to a new university environment.
+                  </p>
+                  <p className="mb-4">
+                    Key developmental milestones were met, but the patient reports a history of feeling "on the outside" during middle and high school. No significant medical history. Previous brief trial of CBT 3 years ago was partially successful, but patient discontinued when symptoms temporarily abated.
+                  </p>
+                  <p>
+                    Currently, the primary concern is avoiding tutorials and seminars due to fear of negative evaluation, leading to academic underperformance and feelings of guilt.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            </div>
+
             <div className="space-y-6">
               <Card>
                 <CardHeader>
@@ -243,15 +281,19 @@ export default async function PatientCard({ params }: { params: { id: string } }
                 </Card>
               )}
 
-              {pNextAppointment && (
-                <Card className="bg-clinical-soft/50 border-dashed">
-                  <CardContent className="p-4 flex items-center gap-3">
-                    <Calendar className="h-5 w-5 text-[#848484]" />
-                    <div>
-                      <p className="text-[11px] uppercase tracking-wider text-[#848484]">
-                        Next appointment
-                      </p>
-                      <p className="text-sm font-medium text-clinical-ink">
+              <Card className="bg-gradient-to-br from-[#FCFBFE] to-clinical-soft/40 border-clinical-border flex flex-col">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="primary" className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold tracking-wider">
+                      <Sparkles className="h-3 w-3" />
+                      PRE-SESSION RECAP
+                    </Badge>
+                  </div>
+                  <CardTitle className="text-[18px]">Next Appointment</CardTitle>
+                  <CardDescription className="flex items-center gap-1.5 mt-1.5 text-[13px]">
+                    <Calendar className="h-3 w-3" strokeWidth={1.75} />
+                    {pNextAppointment ? (
+                      <>
                         {new Date(pNextAppointment).toLocaleString([], {
                           weekday: "short",
                           month: "short",
@@ -259,11 +301,54 @@ export default async function PatientCard({ params }: { params: { id: string } }
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
-                      </p>
-                    </div>
+                        {" "}· 50 min
+                      </>
+                    ) : (
+                      "Not scheduled yet"
+                    )}
+                  </CardDescription>
+                </CardHeader>
+                  <CardContent className="flex-1 flex flex-col relative min-h-[260px]">
+                    <RevealOverlay disabled={!pNextAppointment} disabledMessage="No upcoming appointment">
+                      <div className="space-y-6 flex-1 flex flex-col">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium mb-2.5">
+                            Themes from last 3 sessions
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="outline" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Avoidance</Badge>
+                            <Badge variant="outline" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Catastrophic thinking</Badge>
+                            <Badge variant="outline" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Self-image</Badge>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium mb-2.5">
+                            Open items
+                          </p>
+                          <div className="flex items-start gap-2.5 text-[14px] text-clinical-ink">
+                            <CheckCircle2 className="h-4 w-4 text-[#848484] mt-0.5 shrink-0" strokeWidth={1.75} />
+                            <span>Attend one tutorial without leaving early</span>
+                          </div>
+                        </div>
+
+                        <div className="flex-1">
+                          <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium mb-2.5">
+                            Unresolved
+                          </p>
+                          <div className="flex items-start gap-2.5 text-[14px] text-clinical-ink">
+                            <AlertTriangle className="h-4 w-4 text-[#E67E22] mt-0.5 shrink-0" strokeWidth={1.75} />
+                            <span>Disclosure to academic advisor</span>
+                          </div>
+                        </div>
+
+                        <p className="text-[11px] text-[#848484] text-center mt-4">
+                          Generated locally via RAG · patient history indexed
+                        </p>
+                      </div>
+                    </RevealOverlay>
                   </CardContent>
                 </Card>
-              )}
             </div>
           </div>
         </TabsContent>

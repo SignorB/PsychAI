@@ -259,11 +259,11 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                   return (
                     <tr
                       key={id}
-                      className="border-b border-clinical-border last:border-0 hover:bg-clinical-soft/60 transition"
+                      onClick={() => router.push(`/patients/${id}`)}
+                      className="border-b border-clinical-border last:border-0 hover:bg-clinical-soft/60 transition cursor-pointer"
                     >
                       <td className="px-5 py-3">
-                        <Link
-                          href={`/patients/${id}`}
+                        <div
                           className="flex items-center gap-3"
                         >
                           <div className="h-9 w-9 rounded-full bg-clinical-soft flex items-center justify-center text-[11px] font-bold text-clinical-ink">
@@ -285,7 +285,7 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                               {age} yrs
                             </p>
                           </div>
-                        </Link>
+                        </div>
                       </td>
                       <td className="px-3 py-3 hidden md:table-cell text-[#848484] max-w-[280px] truncate">
                         {p.primaryConcern || p.condition || "Not specified"}
@@ -305,12 +305,11 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                         </Badge>
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <Link
-                          href={`/patients/${id}`}
+                        <div
                           className="inline-flex items-center text-xs text-[#848484] hover:text-clinical-ink"
                         >
                           Open <ArrowRight className="h-3 w-3 ml-1" />
-                        </Link>
+                        </div>
                       </td>
                     </tr>
                   )
