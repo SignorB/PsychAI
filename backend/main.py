@@ -195,6 +195,18 @@ def upload_session_notes(patient_id: int, session_id: int, request: SessionNoteR
     return therapy_session
 
 
+@app.post("/patients/{patient_id}/sessions/{session_id}/approve")
+def approve_session(patient_id: int, session_id: int, session: Session = Depends(get_session)):
+    therapy_session = session.get(TherapySession, session_id)
+    if not therapy_session or therapy_session.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    therapy_session.approved = True
+    session.add(therapy_session)
+    session.commit()
+    session.refresh(therapy_session)
+    return therapy_session
+
+
 @app.post("/patients/{patient_id}/sessions/{session_id}/generate-note")
 def generate_session_note(
     patient_id: int,

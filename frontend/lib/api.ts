@@ -191,3 +191,15 @@ export async function semanticSearch(payload: {
   }
   return res.json();
 }
+
+export async function approveSession(patientId: string, sessionId: string) {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/patients/${patientId}/sessions/${sessionId}/approve`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to approve session: ${text}`);
+  }
+  return res.json();
+}

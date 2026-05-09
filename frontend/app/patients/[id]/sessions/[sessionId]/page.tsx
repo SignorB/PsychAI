@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Square,
   Upload,
+  CheckCircle2,
 } from "lucide-react";
 import {
   Card,
@@ -29,6 +30,7 @@ import {
   generateSessionNote,
   transcribeSessionAudio,
   askPatient,
+  approveSession,
 } from "@/lib/api";
 
 type Patient = {
@@ -44,6 +46,7 @@ type TherapySession = {
   transcript?: string;
   clinical_note?: string;
   patient_id: number;
+  approved?: boolean;
 };
 
 type GeneratedNote = {
@@ -70,6 +73,7 @@ export default function SessionDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAsking, setIsAsking] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -143,6 +147,19 @@ export default function SessionDetailPage() {
       setError(err instanceof Error ? err.message : "Failed to query patient history");
     } finally {
       setIsAsking(false);
+    }
+  }
+
+  async function handleApprove() {
+    setIsApproving(true);
+    setError("");
+    try {
+      const updatedSession = await approveSession(params.id, params.sessionId);
+      setSession(updatedSession);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to approve session");
+    } finally {
+      setIsApproving(false);
     }
   }
 
@@ -266,10 +283,23 @@ export default function SessionDetailPage() {
             {patient.name} · {patient.condition}
           </p>
         </div>
-        <Button onClick={handleGenerate} disabled={isGenerating || !transcript.trim()}>
-          {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {isGenerating ? "Generating..." : "Generate AI note"}
-        </Button>
+        <div className="flex gap-2">
+          {!session.approved ? (
+            <Button onClick={handleApprove} disabled={isApproving} variant="outline" className="text-emerald-600 border-emerald-200 hover:bg-emerald-50">
+              {isApproving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+              {isApproving ? "Confirming..." : "Confirm overview"}
+            </Button>
+          ) : (
+            <div className="flex items-center px-4 h-9 rounded-md bg-emerald-50 text-emerald-700 text-sm font-medium border border-emerald-200">
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Confirmed
+            </div>
+          )}
+          <Button onClick={handleGenerate} disabled={isGenerating || !transcript.trim()}>
+            {isGenerating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+            {isGenerating ? "Generating..." : "Generate AI note"}
+          </Button>
+        </div>
       </div>
 
       {error && (
