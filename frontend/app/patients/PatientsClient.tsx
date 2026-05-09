@@ -171,9 +171,9 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-[calc(100vh-3rem)] lg:h-[calc(100vh-4rem)] space-y-6">
       {newPatientModal}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 shrink-0">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-clinical-ink">
             Patients
@@ -188,8 +188,8 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
         </Button>
       </div>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between flex-wrap gap-3">
+      <Card className="flex flex-col min-h-0 flex-1">
+        <CardHeader className="flex-row items-center justify-between flex-wrap gap-3 shrink-0">
           <div className="relative flex-1 max-w-md min-w-[220px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#848484]" />
             <input
@@ -215,18 +215,17 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
             ))}
           </div>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[11px] uppercase tracking-wider text-[#848484] border-b border-clinical-border">
-                  <th className="font-medium px-5 py-3">Patient</th>
-                  <th className="font-medium px-3 py-3 hidden md:table-cell">Concern</th>
-                  <th className="font-medium px-3 py-3">Sessions</th>
-                  <th className="font-medium px-3 py-3 hidden md:table-cell">Status</th>
-                  <th className="font-medium px-5 py-3"></th>
-                </tr>
-              </thead>
+        <CardContent className="p-0 flex-1 overflow-auto min-h-0">
+          <table className="w-full text-sm min-w-[600px] relative">
+            <thead className="sticky top-0 bg-white z-10">
+              <tr className="text-left text-[11px] uppercase tracking-wider text-[#848484]">
+                <th className="font-medium px-5 py-3 border-b border-clinical-border">Patient</th>
+                <th className="font-medium px-3 py-3 hidden md:table-cell border-b border-clinical-border">Concern</th>
+                <th className="font-medium px-3 py-3 border-b border-clinical-border">Sessions</th>
+                <th className="font-medium px-3 py-3 hidden md:table-cell border-b border-clinical-border">Status</th>
+                <th className="font-medium px-5 py-3 border-b border-clinical-border"></th>
+              </tr>
+            </thead>
               <tbody>
                 {filtered.map((p) => {
                   const id = p.id || p.patient_id;
@@ -305,7 +304,6 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                 )}
               </tbody>
             </table>
-          </div>
         </CardContent>
       </Card>
     </div>
