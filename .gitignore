@@ -1,0 +1,7 @@
+# .gitignore
+backend/.venv/
+*.wav
+backend/__pycache__/
+node_modules/
+.next/
+.canvas/

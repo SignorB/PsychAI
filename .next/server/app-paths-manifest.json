@@ -1,7 +1,0 @@
-{
-  "/pending/page": "app/pending/page.js",
-  "/patients/page": "app/patients/page.js",
-  "/search/page": "app/search/page.js",
-  "/page": "app/page.js",
-  "/notes/page": "app/notes/page.js"
-}
