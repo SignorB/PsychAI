@@ -182,9 +182,9 @@ export default async function DashboardPage() {
                     Themes from last 3 sessions
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Avoidance</Badge>
-                    <Badge variant="secondary" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Catastrophic thinking</Badge>
-                    <Badge variant="secondary" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Self-image</Badge>
+                    <Badge variant="outline" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Avoidance</Badge>
+                    <Badge variant="outline" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Catastrophic thinking</Badge>
+                    <Badge variant="outline" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Self-image</Badge>
                   </div>
                 </div>
 
