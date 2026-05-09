@@ -1,17 +1,12 @@
 import Link from "next/link";
 import {
-  CalendarDays,
-  Clock,
-  Video,
-  MapPin,
   ArrowRight,
-  Sparkles,
-  AlertCircle,
+  CalendarDays,
   CheckCircle2,
-  Activity,
-  Users,
+  Clock,
   FileCheck2,
   Mic,
+  Users,
 } from "lucide-react";
 import {
   Card,
@@ -22,77 +17,69 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  appointments,
-  getPatient,
-  getTodayAppointments,
-  patients,
-  sessions,
-} from "@/lib/mock-data";
+import { getPatients, getSessions } from "@/lib/api";
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+export default async function DashboardPage() {
+  let patients: any[] = [];
+  let sessions: any[] = [];
 
-export default function DashboardPage() {
-  const todays = getTodayAppointments();
-  const upcoming = appointments
-    .filter((a) => new Date(a.date) > new Date())
-    .sort((a, b) => +new Date(a.date) - +new Date(b.date));
-  const next = upcoming[0];
-  const nextPatient = next ? getPatient(next.patientId) : null;
+  try {
+    const [patientsData, sessionsData] = await Promise.all([
+      getPatients(),
+      getSessions(),
+    ]);
+    patients = patientsData.patients || [];
+    sessions = sessionsData.sessions || [];
+  } catch (error) {
+    console.error("Failed to fetch dashboard data:", error);
+  }
 
-  const today = new Date();
-  const dateLabel = today.toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const pendingNotes = sessions.filter((session) => !session.clinical_note);
+  const recent = [...sessions]
+    .sort((a, b) => +new Date(b.date) - +new Date(a.date))
+    .slice(0, 5);
+  const patientById = new Map(patients.map((patient) => [patient.id, patient]));
 
   const stats = [
-    { label: "Sessions today", value: todays.length, icon: CalendarDays },
-    { label: "Active patients", value: patients.filter((p) => p.status === "Active").length, icon: Users },
-    { label: "Notes pending approval", value: 2, icon: FileCheck2 },
-    { label: "Avg. session length", value: "52m", icon: Activity },
+    { label: "Patients", value: patients.length, icon: Users },
+    { label: "Sessions", value: sessions.length, icon: CalendarDays },
+    { label: "Notes pending", value: pendingNotes.length, icon: FileCheck2 },
+    { label: "Generated notes", value: sessions.length - pendingNotes.length, icon: CheckCircle2 },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.14em] text-[#848484]">
-            {dateLabel}
+            Local clinical workspace
           </p>
           <h1 className="text-2xl font-bold tracking-tight text-clinical-ink mt-0.5">
-            Good morning, Dr. Marlowe
+            PsychAI dashboard
           </h1>
           <p className="text-sm text-[#848484] mt-1">
-            Your day at a glance — every note is reviewed by you before it's
-            saved.
+            Data loaded from the backend. AI generation runs through the local AI service.
           </p>
         </div>
-        <Button>
-          <Mic className="h-4 w-4" strokeWidth={1.75} />
-          Start next session
-        </Button>
+        <Link href="/patients">
+          <Button>
+            <Mic className="h-4 w-4" strokeWidth={1.75} />
+            Start from patient card
+          </Button>
+        </Link>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((s) => {
-          const Icon = s.icon;
+        {stats.map((stat) => {
+          const Icon = stat.icon;
           return (
-            <Card key={s.label} className="hover:border-[#848484]/40 transition">
+            <Card key={stat.label} className="hover:border-[#848484]/40 transition">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-xs text-[#848484]">{s.label}</p>
+                    <p className="text-xs text-[#848484]">{stat.label}</p>
                     <p className="text-2xl font-bold text-clinical-ink mt-1">
-                      {s.value}
+                      {stat.value}
                     </p>
                   </div>
                   <div className="h-9 w-9 rounded-lg bg-clinical-soft flex items-center justify-center">
@@ -106,208 +93,84 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Today's appointments */}
         <Card className="lg:col-span-2">
           <CardHeader className="flex-row items-center justify-between">
             <div>
-              <CardTitle>Today&apos;s appointments</CardTitle>
+              <CardTitle>Recent sessions</CardTitle>
               <CardDescription>
-                {todays.length} sessions · click any row to open the patient card
+                Open a real backend session and generate an AI note.
               </CardDescription>
             </div>
-            <Link href="/calendar">
+            <Link href="/pending">
               <Button variant="ghost" size="sm">
-                Open calendar
-                <ArrowRight className="h-3.5 w-3.5" />
+                Sessions to close <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </Link>
           </CardHeader>
           <CardContent className="p-0">
-            <ul className="divide-y divide-clinical-border">
-              {todays.map((appt) => {
-                const p = getPatient(appt.patientId);
-                if (!p) return null;
-                return (
-                  <li key={appt.id}>
-                    <Link
-                      href={`/patients/${p.id}`}
-                      className="flex items-center gap-4 p-4 hover:bg-clinical-soft/60 transition-colors"
-                    >
-                      <div className="w-16 shrink-0 text-center">
-                        <p className="text-sm font-bold text-clinical-ink">
-                          {formatTime(appt.date)}
-                        </p>
-                        <p className="text-[11px] text-[#848484]">
-                          {appt.durationMin} min
-                        </p>
-                      </div>
-                      <div className="h-10 w-10 rounded-full bg-clinical-soft flex items-center justify-center text-xs font-bold text-clinical-ink">
-                        {p.initials}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-medium text-clinical-ink">
-                            {p.name}
-                          </p>
-                          <Badge variant="outline">{appt.type}</Badge>
+            {recent.length === 0 ? (
+              <div className="p-10 text-center text-sm text-[#848484]">
+                No sessions yet. Open a patient and start one.
+              </div>
+            ) : (
+              <ul className="divide-y divide-clinical-border">
+                {recent.map((session) => {
+                  const patient = patientById.get(session.patient_id);
+                  return (
+                    <li key={session.id}>
+                      <Link
+                        href={`/patients/${session.patient_id}/sessions/${session.id}`}
+                        className="flex items-center gap-4 p-4 hover:bg-clinical-soft/60 transition-colors"
+                      >
+                        <div className="h-10 w-10 rounded-full bg-clinical-soft flex items-center justify-center text-xs font-bold text-clinical-ink">
+                          {(patient?.name || "PT").slice(0, 2).toUpperCase()}
                         </div>
-                        <p className="text-xs text-[#848484] mt-0.5 truncate">
-                          {p.primaryConcern}
-                        </p>
-                      </div>
-                      <div className="hidden md:flex items-center gap-1.5 text-xs text-[#848484]">
-                        {appt.location === "Telehealth" ? (
-                          <Video className="h-3.5 w-3.5" strokeWidth={1.75} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-clinical-ink">
+                            {patient?.name || `Patient ${session.patient_id}`}
+                          </p>
+                          <p className="text-xs text-[#848484] mt-0.5 flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {new Date(session.date).toLocaleString()}
+                          </p>
+                        </div>
+                        {session.clinical_note ? (
+                          <Badge variant="success">Generated</Badge>
                         ) : (
-                          <MapPin className="h-3.5 w-3.5" strokeWidth={1.75} />
+                          <Badge variant="warning">Needs note</Badge>
                         )}
-                        {appt.location}
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-[#848484]" />
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+                        <ArrowRight className="h-4 w-4 text-[#848484]" />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </CardContent>
         </Card>
 
-        {/* Pre-session recap */}
-        {next && nextPatient && (
-          <Card className="bg-gradient-to-br from-white to-clinical-soft/50 border-clinical-border">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-clinical-ink" strokeWidth={1.75} />
-                <Badge variant="primary">PRE-SESSION RECAP</Badge>
-              </div>
-              <CardTitle className="mt-2">{nextPatient.name}</CardTitle>
-              <CardDescription className="flex items-center gap-1.5">
-                <Clock className="h-3 w-3" strokeWidth={1.75} />
-                {formatTime(next.date)} · {next.durationMin} min ·{" "}
-                {nextPatient.modality}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium">
-                  Themes from last 3 sessions
-                </p>
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {nextPatient.themes.map((t) => (
-                    <Badge key={t} variant="default">
-                      {t}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium">
-                  Open items
-                </p>
-                <ul className="mt-2 space-y-1.5">
-                  {nextPatient.openItems.map((item) => (
-                    <li
-                      key={item}
-                      className="flex gap-2 text-xs text-clinical-ink leading-relaxed"
-                    >
-                      <CheckCircle2
-                        className="h-3.5 w-3.5 mt-0.5 shrink-0 text-[#848484]"
-                        strokeWidth={1.75}
-                      />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div>
-                <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium">
-                  Unresolved
-                </p>
-                <ul className="mt-2 space-y-1.5">
-                  {nextPatient.unresolved.map((item) => (
-                    <li
-                      key={item}
-                      className="flex gap-2 text-xs text-clinical-ink leading-relaxed"
-                    >
-                      <AlertCircle
-                        className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-600"
-                        strokeWidth={1.75}
-                      />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <Link href={`/patients/${nextPatient.id}`} className="block">
-                <Button variant="outline" className="w-full">
-                  Open patient card
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Button>
-              </Link>
-
-              <p className="text-[10px] text-[#848484] text-center pt-1">
-                Generated locally via RAG · {patients.length} patients indexed
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        <Card className="bg-gradient-to-br from-white to-clinical-soft/50 border-clinical-border">
+          <CardHeader>
+            <CardTitle>Integration status</CardTitle>
+            <CardDescription>Current MVP connection path</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-clinical-ink">
+            <StatusLine label="Frontend" value="Next.js" />
+            <StatusLine label="Backend" value="FastAPI + SQLite" />
+            <StatusLine label="AI service" value="Ollama + Whisper" />
+            <StatusLine label="Vector DB" value="In memory" />
+          </CardContent>
+        </Card>
       </div>
+    </div>
+  );
+}
 
-      {/* Recent activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent session notes</CardTitle>
-          <CardDescription>
-            AI-drafted notes awaiting or completed approval
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <ul className="divide-y divide-clinical-border">
-            {sessions.slice(0, 4).map((s) => {
-              const p = getPatient(s.patientId);
-              if (!p) return null;
-              return (
-                <li key={s.id}>
-                  <Link
-                    href={`/patients/${p.id}/sessions/${s.id}`}
-                    className="flex items-center gap-4 p-4 hover:bg-clinical-soft/60 transition-colors"
-                  >
-                    <div className="h-10 w-10 rounded-full bg-clinical-soft flex items-center justify-center text-xs font-bold text-clinical-ink">
-                      {p.initials}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-clinical-ink">
-                        {p.name}
-                      </p>
-                      <p className="text-xs text-[#848484] mt-0.5 truncate">
-                        {s.note.reason}
-                      </p>
-                    </div>
-                    <p className="text-xs text-[#848484] hidden sm:block">
-                      {new Date(s.date).toLocaleDateString()}
-                    </p>
-                    {s.approved ? (
-                      <Badge variant="success">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Approved
-                      </Badge>
-                    ) : (
-                      <Badge variant="warning">
-                        <AlertCircle className="h-3 w-3" />
-                        Awaiting approval
-                      </Badge>
-                    )}
-                    <ArrowRight className="h-4 w-4 text-[#848484]" />
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </CardContent>
-      </Card>
+function StatusLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-clinical-border last:border-0 pb-2 last:pb-0">
+      <span className="text-[#848484]">{label}</span>
+      <span className="font-medium">{value}</span>
     </div>
   );
 }

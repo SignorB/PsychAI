@@ -50,9 +50,19 @@ export default async function PatientCard({ params }: { params: { id: string } }
   if (!pData) notFound();
 
   // Handle missing fields with safe fallbacks
-  const pId = pData.patient_id || params.id;
+  const patientSessions = sessionsData.sessions || [];
+  const pId = pData.id || pData.patient_id || params.id;
   const pName = pData.name || `Patient ${pId}`;
-  const pInitials = pData.initials || "PT";
+  const pInitials =
+    pData.initials ||
+    pName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part: string) => part[0])
+      .join("")
+      .toUpperCase() ||
+    "PT";
   const pStatus = pData.status || "Active";
   const pRiskFlags = pData.riskFlags || [];
   const pAge = pData.age || "N/A";
@@ -61,16 +71,15 @@ export default async function PatientCard({ params }: { params: { id: string } }
   const pEmail = pData.email || "No email";
   const pPhone = pData.phone || "No phone";
   const pStartedOn = pData.startedOn || new Date().toISOString();
-  const pTotalSessions = pData.totalSessions || 0;
-  const pIntakeNotes = pData.intakeNotes || "No intake notes available.";
-  const pDiagnosis = pData.diagnosis || [];
+  const pTotalSessions = patientSessions.length;
+  const pIntakeNotes =
+    pData.intake_notes || pData.intakeNotes || "No intake notes available.";
+  const pDiagnosis = pData.diagnosis || (pData.condition ? [pData.condition] : []);
   const pModality = pData.modality || "Not specified";
   const pThemes = pData.themes || [];
   const pOpenItems = pData.openItems || [];
   const pUnresolved = pData.unresolved || [];
   const pNextAppointment = pData.nextAppointment || null;
-
-  const patientSessions = sessionsData.sessions || [];
 
   return (
     <div className="space-y-6">
@@ -309,11 +318,11 @@ export default async function PatientCard({ params }: { params: { id: string } }
                                 </span>
                               </div>
                               <p className="text-xs text-[#848484] mt-1 max-w-2xl line-clamp-2">
-                                {s.note?.reason || "No summary available"}
+                                {s.clinical_note || s.note?.reason || "No summary available"}
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
-                              {s.approved ? (
+                              {s.clinical_note || s.approved ? (
                                 <Badge variant="success">Approved</Badge>
                               ) : (
                                 <Badge variant="warning">Awaiting approval</Badge>

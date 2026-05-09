@@ -1,30 +1,69 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const CONFIGURED_API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_PORT = process.env.NEXT_PUBLIC_API_PORT || "8000";
+
+function getApiUrl() {
+  if (CONFIGURED_API_URL) return CONFIGURED_API_URL;
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:${API_PORT}`;
+  }
+  return `http://localhost:${API_PORT}`;
+}
 
 export async function getPatients() {
+  const API_URL = getApiUrl();
   const res = await fetch(`${API_URL}/patients`, { cache: 'no-store' });
   if (!res.ok) throw new Error("Failed to fetch patients");
   return res.json();
 }
 
 export async function getSessions() {
+  const API_URL = getApiUrl();
   const res = await fetch(`${API_URL}/sessions`, { cache: 'no-store' });
   if (!res.ok) throw new Error("Failed to fetch sessions");
   return res.json();
 }
 
 export async function getPatient(patientId: string) {
+  const API_URL = getApiUrl();
   const res = await fetch(`${API_URL}/patients/${patientId}`, { cache: 'no-store' });
   if (!res.ok) throw new Error("Failed to fetch patient");
   return res.json();
 }
 
 export async function getPatientSessions(patientId: string) {
+  const API_URL = getApiUrl();
   const res = await fetch(`${API_URL}/patients/${patientId}/sessions`, { cache: 'no-store' });
   if (!res.ok) throw new Error("Failed to fetch patient sessions");
   return res.json();
 }
 
+export async function getPatientSession(patientId: string, sessionId: string) {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/patients/${patientId}/sessions/${sessionId}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error("Failed to fetch patient session");
+  return res.json();
+}
+
+export async function createPatient(payload: {
+  name: string;
+  age: number;
+  condition: string;
+  intake_notes?: string;
+}) {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/patients`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to create patient");
+  return res.json();
+}
+
 export async function createPatientSession(patientId: string) {
+  const API_URL = getApiUrl();
   const res = await fetch(`${API_URL}/patients/${patientId}/sessions`, {
     method: "POST",
     headers: {
@@ -32,5 +71,53 @@ export async function createPatientSession(patientId: string) {
     },
   });
   if (!res.ok) throw new Error("Failed to create session");
+  return res.json();
+}
+
+export async function generateSessionNote(
+  patientId: string,
+  sessionId: string,
+  payload: {
+    transcript?: string;
+    manual_notes?: string[];
+    model_profile?: string;
+  }
+) {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/patients/${patientId}/sessions/${sessionId}/generate-note`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model_profile: "qwen",
+      manual_notes: [],
+      ...payload,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to generate note: ${text}`);
+  }
+  return res.json();
+}
+
+export async function askPatient(patientId: string, question: string) {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/patients/${patientId}/ask`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      question,
+      model_profile: "qwen",
+      top_k: 5,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to ask patient history: ${text}`);
+  }
   return res.json();
 }

@@ -1,13 +1,33 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 import os
 from contextlib import asynccontextmanager
-from typing import List, Dict, Any
+from pydantic import BaseModel
 from datetime import datetime
 
 from database import create_db_and_tables, get_session, seed_database
 from models import Patient, TherapySession
+from ai_client import AIServiceClientError, ai_health, ask_patient, draft_session_note, index_patient_source
+
+
+def _split_env_list(name: str, default: list[str]) -> list[str]:
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+class SessionNoteRequest(BaseModel):
+    transcript: str | None = None
+    manual_notes: list[str] = []
+    model_profile: str = "qwen"
+
+
+class PatientQuestionRequest(BaseModel):
+    question: str
+    model_profile: str = "qwen"
+    top_k: int = 5
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,10 +40,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="PsychAI Backend", lifespan=lifespan)
 
-# Configurazione CORS per far parlare Next.js (Frontend) e FastAPI
+# Configurazione CORS per far parlare Next.js (Frontend) e FastAPI anche da LAN.
+cors_origins = _split_env_list(
+    "BACKEND_CORS_ORIGINS",
+    ["http://localhost:3000", "http://127.0.0.1:3000"],
+)
+cors_origin_regex = os.getenv(
+    "BACKEND_CORS_ORIGIN_REGEX",
+    r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|[a-zA-Z0-9-]+|[a-zA-Z0-9-]+\.local|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$",
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"], # L'URL del tuo frontend
+    allow_origins=cors_origins,
+    allow_origin_regex=cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -32,6 +62,16 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return {"status": "PsychAI Backend is running! 🧠"}
+
+
+@app.get("/health")
+def health():
+    ai_status = None
+    try:
+        ai_status = ai_health()
+    except AIServiceClientError as exc:
+        ai_status = {"status": "unavailable", "detail": str(exc)}
+    return {"status": "ok", "ai_service": ai_status}
 
 @app.get("/patients")
 def get_patients(session: Session = Depends(get_session)):
@@ -52,6 +92,14 @@ def get_all_sessions(session: Session = Depends(get_session)):
     """Retrieve all therapy sessions across all patients."""
     sessions = session.exec(select(TherapySession)).all()
     return {"sessions": sessions}
+
+
+@app.get("/patients/{patient_id}/sessions/{session_id}", response_model=TherapySession)
+def get_session_detail(patient_id: int, session_id: int, session: Session = Depends(get_session)):
+    therapy_session = session.get(TherapySession, session_id)
+    if not therapy_session or therapy_session.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return therapy_session
 
 @app.get("/patients/{patient_id}", response_model=Patient)
 def get_patient(patient_id: int, session: Session = Depends(get_session)):
@@ -78,6 +126,7 @@ def create_session(patient_id: int, session: Session = Depends(get_session)):
     
     new_session = TherapySession(
         date=datetime.utcnow().isoformat() + "Z",
+        transcript=patient.intake_notes or "",
         patient_id=patient.id
     )
     
@@ -88,10 +137,87 @@ def create_session(patient_id: int, session: Session = Depends(get_session)):
     return new_session
 
 @app.post("/patients/{patient_id}/sessions/{session_id}/notes")
-def upload_session_notes(patient_id: str, session_id: str,  notes: str):
-    return {"patient_id": patient_id, "session_id": session_id, "notes": notes}
+def upload_session_notes(patient_id: int, session_id: int, request: SessionNoteRequest, session: Session = Depends(get_session)):
+    therapy_session = session.get(TherapySession, session_id)
+    if not therapy_session or therapy_session.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if request.transcript is not None:
+        therapy_session.transcript = request.transcript
+    if request.manual_notes:
+        therapy_session.clinical_note = "\n".join(request.manual_notes)
+    session.add(therapy_session)
+    session.commit()
+    session.refresh(therapy_session)
+    return therapy_session
+
+
+@app.post("/patients/{patient_id}/sessions/{session_id}/generate-note")
+def generate_session_note(
+    patient_id: int,
+    session_id: int,
+    request: SessionNoteRequest,
+    session: Session = Depends(get_session),
+):
+    therapy_session = session.get(TherapySession, session_id)
+    if not therapy_session or therapy_session.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    transcript = request.transcript or therapy_session.transcript
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Session transcript is required")
+
+    try:
+        ai_note = draft_session_note(
+            patient_id=patient_id,
+            session_id=session_id,
+            transcript_text=transcript,
+            manual_notes=request.manual_notes,
+            model_profile=request.model_profile,
+        )
+        therapy_session.transcript = transcript
+        therapy_session.clinical_note = ai_note.get("structured_note", "")
+        session.add(therapy_session)
+        session.commit()
+        session.refresh(therapy_session)
+
+        index_payload = "\n\n".join(
+            part for part in [therapy_session.transcript, therapy_session.clinical_note] if part
+        )
+        index_result = index_patient_source(
+            patient_id=patient_id,
+            source_id=f"session_{session_id}",
+            source_type="clinical_summary",
+            text=index_payload,
+            session_id=session_id,
+            model_profile=request.model_profile,
+        )
+    except AIServiceClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {"session": therapy_session, "ai_note": ai_note, "index": index_result}
 
 # TODO: implement STT to transcribe the session
 @app.post("/patients/{patient_id}/sessions/{session_id}/transcribe")
 def transcribe_session(patient_id: str, session_id: str):
     return {"patient_id": patient_id, "session_id": session_id}
+
+
+@app.post("/patients/{patient_id}/ask")
+def ask_patient_history(
+    patient_id: int,
+    request: PatientQuestionRequest,
+    session: Session = Depends(get_session),
+):
+    patient = session.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    try:
+        answer = ask_patient(
+            patient_id=patient_id,
+            question=request.question,
+            model_profile=request.model_profile,
+            top_k=request.top_k,
+        )
+    except AIServiceClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return answer

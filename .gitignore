@@ -8,3 +8,4 @@ node_modules/
 ai/.agents/
 ai/.codex/
 ai/.venv/
+.vscode/

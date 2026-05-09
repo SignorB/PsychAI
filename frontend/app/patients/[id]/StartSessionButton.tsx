@@ -1,21 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Mic, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createPatientSession } from "@/lib/api";
 
 export default function StartSessionButton({ patientId }: { patientId: string }) {
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const handleStartSession = async () => {
     try {
       setIsLoading(true);
-      await createPatientSession(patientId);
-      // In a real app you might use a toast library like sonner or react-hot-toast
-      // For now we'll use an alert as a simple success toast
-      alert("Session started successfully!");
-      // Here you might redirect to a session active page
+      const session = await createPatientSession(patientId);
+      router.push(`/patients/${patientId}/sessions/${session.id}`);
     } catch (error) {
       console.error("Failed to start session:", error);
       alert("Failed to start session. Please try again.");

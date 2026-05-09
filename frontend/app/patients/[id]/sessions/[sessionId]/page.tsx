@@ -1,19 +1,16 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   ArrowLeft,
   ChevronRight,
+  Loader2,
   Mic,
-  Sparkles,
-  CheckCircle2,
-  AlertTriangle,
-  Lock,
-  ShieldCheck,
-  FileText,
   Save,
+  Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Card,
@@ -24,46 +21,132 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { getPatient, getSession } from "@/lib/mock-data";
+import { getPatient, getPatientSession, generateSessionNote, askPatient } from "@/lib/api";
+
+type Patient = {
+  id: number;
+  name: string;
+  condition: string;
+  intake_notes?: string;
+};
+
+type TherapySession = {
+  id: number;
+  date: string;
+  transcript?: string;
+  clinical_note?: string;
+  patient_id: number;
+};
+
+type GeneratedNote = {
+  themes?: { title: string; evidence: string[] }[];
+  symptoms?: { name: string; confidence: string }[];
+  structured_note?: string;
+  next_session_recap?: {
+    open_points: string[];
+    suggested_followups: string[];
+    patient_words_to_revisit: string[];
+  };
+  uncertainties?: string[];
+};
 
 export default function SessionDetailPage() {
   const params = useParams<{ id: string; sessionId: string }>();
-  const patient = getPatient(params.id);
-  const session = getSession(params.sessionId);
-  if (!patient || !session) notFound();
+  const [patient, setPatient] = useState<Patient | null>(null);
+  const [session, setSession] = useState<TherapySession | null>(null);
+  const [transcript, setTranscript] = useState("");
+  const [manualNote, setManualNote] = useState("");
+  const [generated, setGenerated] = useState<GeneratedNote | null>(null);
+  const [ragQuestion, setRagQuestion] = useState("Cosa va ripreso nella prossima seduta?");
+  const [ragAnswer, setRagAnswer] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isAsking, setIsAsking] = useState(false);
+  const [error, setError] = useState("");
 
-  const [approved, setApproved] = useState(session.approved);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [freeNotes, setFreeNotes] = useState(session.freeNotes);
+  useEffect(() => {
+    async function load() {
+      setIsLoading(true);
+      setError("");
+      try {
+        const [patientData, sessionData] = await Promise.all([
+          getPatient(params.id),
+          getPatientSession(params.id, params.sessionId),
+        ]);
+        setPatient(patientData);
+        setSession(sessionData);
+        setTranscript(sessionData.transcript || patientData.intake_notes || "");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load session");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    load();
+  }, [params.id, params.sessionId]);
 
-  const dateLabel = useMemo(
-    () =>
-      new Date(session.date).toLocaleDateString(undefined, {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      }),
-    [session.date]
-  );
+  const dateLabel = useMemo(() => {
+    if (!session?.date) return "";
+    return new Date(session.date).toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  }, [session?.date]);
+
+  async function handleGenerate() {
+    if (!session) return;
+    setIsGenerating(true);
+    setError("");
+    try {
+      const response = await generateSessionNote(params.id, params.sessionId, {
+        transcript,
+        manual_notes: manualNote ? [manualNote] : [],
+      });
+      setSession(response.session);
+      setGenerated(response.ai_note);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate note");
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  async function handleAsk() {
+    setIsAsking(true);
+    setError("");
+    try {
+      const response = await askPatient(params.id, ragQuestion);
+      setRagAnswer(response);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to query patient history");
+    } finally {
+      setIsAsking(false);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-[#848484]">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading session...
+      </div>
+    );
+  }
+
+  if (!patient || !session) {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+        {error || "Session not found"}
+      </div>
+    );
+  }
+
+  const noteText = generated?.structured_note || session.clinical_note || "";
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-[#848484]">
         <Link href="/patients" className="hover:text-clinical-ink flex items-center gap-1">
           <ArrowLeft className="h-3 w-3" />
@@ -77,7 +160,6 @@ export default function SessionDetailPage() {
         <span className="text-clinical-ink font-medium">Session</span>
       </div>
 
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.14em] text-[#848484]">
@@ -87,248 +169,163 @@ export default function SessionDetailPage() {
             {dateLabel}
           </h1>
           <p className="text-sm text-[#848484] mt-1">
-            {patient.name} · {session.durationMin} min · {session.modality}
+            {patient.name} · {patient.condition}
           </p>
         </div>
-        <div className="flex gap-2">
-          {approved ? (
-            <Badge variant="success" className="h-9 px-3 text-xs">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Approved & saved
-            </Badge>
-          ) : (
-            <Button onClick={() => setConfirmOpen(true)}>
-              <ShieldCheck className="h-4 w-4" />
-              Approve & save note
-            </Button>
-          )}
-        </div>
+        <Button onClick={handleGenerate} disabled={isGenerating || !transcript.trim()}>
+          {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {isGenerating ? "Generating..." : "Generate AI note"}
+        </Button>
       </div>
 
-      {/* Mandatory approval banner */}
-      {!approved && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
-          <Lock className="h-5 w-5 text-amber-700 mt-0.5 shrink-0" strokeWidth={1.75} />
-          <div className="flex-1">
-            <p className="text-sm font-bold text-amber-900">
-              Mandatory approval required
-            </p>
-            <p className="text-xs text-amber-800 mt-0.5">
-              This AI-drafted note has not yet been reviewed. Nothing is
-              committed to the patient record until you explicitly approve it.
-            </p>
-          </div>
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-900 flex gap-2">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {error}
         </div>
       )}
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Tabs defaultValue="note">
-            <TabsList>
-              <TabsTrigger value="note">Structured note</TabsTrigger>
-              <TabsTrigger value="transcript">
-                Transcript ({session.transcript.length})
-              </TabsTrigger>
-              <TabsTrigger value="raw">My notes</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="note">
-              <Card>
-                <CardHeader className="flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-[#848484]" />
-                      AI-drafted clinical note
-                    </CardTitle>
-                    <CardDescription>
-                      Generated locally · review and edit before approval
-                    </CardDescription>
-                  </div>
-                  <Badge variant="outline">Draft v1</Badge>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <NoteSection
-                    label="Reason for session"
-                    value={session.note.reason}
-                  />
-                  <NoteSection
-                    label="Content"
-                    value={session.note.content}
-                  />
-                  <NoteSection
-                    label="Observations"
-                    value={session.note.observations}
-                  />
-                  <NoteSection
-                    label="Therapeutic plan"
-                    value={session.note.plan}
-                  />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="transcript">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Mic className="h-4 w-4 text-[#848484]" />
-                    Raw transcript
-                  </CardTitle>
-                  <CardDescription>
-                    Speech-to-text processed on-device · never leaves this machine
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4 max-h-[600px] overflow-y-auto">
-                  {session.transcript.map((line, i) => (
-                    <div key={i} className="flex gap-3 text-sm leading-relaxed">
-                      <span className="text-[11px] font-mono text-[#848484] w-16 shrink-0 pt-0.5">
-                        {line.t}
-                      </span>
-                      <div className="flex-1">
-                        <p
-                          className={`text-[11px] font-medium uppercase tracking-wider ${
-                            line.speaker === "Therapist"
-                              ? "text-clinical-ink"
-                              : "text-[#848484]"
-                          }`}
-                        >
-                          {line.speaker}
-                        </p>
-                        <p className="text-clinical-ink mt-0.5">{line.text}</p>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="raw">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Free notes</CardTitle>
-                  <CardDescription>
-                    Your own observations · stays separate from the AI draft
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <textarea
-                    value={freeNotes}
-                    onChange={(e) => setFreeNotes(e.target.value)}
-                    placeholder="Type or dictate your private observations…"
-                    className="w-full min-h-[220px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y"
-                  />
-                  <div className="flex items-center justify-between mt-3">
-                    <p className="text-xs text-[#848484]">
-                      Auto-saved locally · {freeNotes.length} characters
-                    </p>
-                    <Button variant="outline" size="sm">
-                      <Mic className="h-3.5 w-3.5" /> Voice memo
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        <div className="space-y-6">
-          <Card className="bg-gradient-to-br from-white to-clinical-soft/50">
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-clinical-ink" />
-                Highlights & themes
+                <Mic className="h-4 w-4 text-[#848484]" />
+                Transcript input
               </CardTitle>
               <CardDescription>
-                Surfaced from this session
+                For now this is editable text. Later it will be populated by Whisper.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-2.5">
-                {session.highlights.map((h) => (
-                  <li key={h} className="flex gap-2 text-sm text-clinical-ink leading-relaxed">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#848484] mt-2 shrink-0" />
-                    {h}
-                  </li>
-                ))}
-              </ul>
+              <textarea
+                value={transcript}
+                onChange={(event) => setTranscript(event.target.value)}
+                className="w-full min-h-[220px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y"
+                placeholder="Paste or type the session transcript..."
+              />
+              <p className="mt-2 text-xs text-[#848484]">{transcript.length} characters</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Actions</CardTitle>
+              <CardTitle>Manual note</CardTitle>
+              <CardDescription>
+                Optional clinician note merged into the AI draft request.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <Link href={`/patients/${patient.id}/referral`} className="block">
-                <Button variant="outline" className="w-full justify-start">
-                  <FileText className="h-4 w-4" />
-                  Generate referral letter
-                </Button>
-              </Link>
-              <Button variant="outline" className="w-full justify-start">
-                <Save className="h-4 w-4" />
-                Export note as PDF
-              </Button>
+            <CardContent>
+              <textarea
+                value={manualNote}
+                onChange={(event) => setManualNote(event.target.value)}
+                className="w-full min-h-[120px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y"
+                placeholder="Add clinical context before generating..."
+              />
             </CardContent>
           </Card>
 
-          <div className="rounded-xl border border-clinical-border bg-clinical-soft/40 p-4">
-            <div className="flex items-center gap-2 text-[11px] font-medium text-clinical-ink">
-              <Lock className="h-3 w-3" /> ON-DEVICE PROCESSING
-            </div>
-            <p className="text-xs text-[#848484] mt-1.5 leading-relaxed">
-              Transcript and AI draft were generated by your local model. No
-              audio, text, or metadata has been sent off this device.
-            </p>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-[#848484]" />
+                AI-drafted clinical note
+              </CardTitle>
+              <CardDescription>
+                Generated by backend via local AI service.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {noteText ? (
+                <p className="text-sm leading-relaxed text-clinical-ink whitespace-pre-wrap">
+                  {noteText}
+                </p>
+              ) : (
+                <p className="text-sm text-[#848484]">
+                  No AI note yet. Generate one from the transcript above.
+                </p>
+              )}
+              {generated?.uncertainties && generated.uncertainties.length > 0 && (
+                <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
+                  <p className="text-xs font-medium text-amber-900">Uncertainties</p>
+                  <ul className="mt-1 space-y-1 text-xs text-amber-800">
+                    {generated.uncertainties.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Extracted themes</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {generated?.themes?.length ? (
+                generated.themes.map((theme) => (
+                  <Badge key={theme.title} variant="info">
+                    {theme.title}
+                  </Badge>
+                ))
+              ) : (
+                <p className="text-sm text-[#848484]">Generate a note to see themes.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Symptoms / observations</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {generated?.symptoms?.length ? (
+                generated.symptoms.map((symptom) => (
+                  <div key={symptom.name} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="text-clinical-ink">{symptom.name}</span>
+                    <Badge variant="outline">{symptom.confidence}</Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-[#848484]">Generate a note to see observations.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Ask patient history</CardTitle>
+              <CardDescription>
+                Uses the vector index populated when notes are generated.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <textarea
+                value={ragQuestion}
+                onChange={(event) => setRagQuestion(event.target.value)}
+                className="w-full min-h-[80px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y"
+              />
+              <Button variant="outline" className="w-full" onClick={handleAsk} disabled={isAsking || !ragQuestion.trim()}>
+                {isAsking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {isAsking ? "Asking..." : "Ask"}
+              </Button>
+              {ragAnswer && (
+                <div className="rounded-md bg-clinical-soft p-3 text-sm text-clinical-ink">
+                  <p>{ragAnswer.answer}</p>
+                  {ragAnswer.citations?.length > 0 && (
+                    <p className="mt-2 text-xs text-[#848484]">
+                      Citations: {ragAnswer.citations.join(", ")}
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
-
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-emerald-600" />
-            Approve clinical note
-          </DialogTitle>
-          <DialogDescription>
-            By approving, you confirm you have reviewed the AI-drafted note and
-            take clinical responsibility for its accuracy. The note will be
-            committed to {patient.name}&apos;s record.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogContent>
-          <div className="rounded-md border border-clinical-border bg-clinical-soft/50 p-3 text-xs text-[#848484] flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-            This action cannot be undone from this view. You may still edit the
-            note from the patient&apos;s session history.
-          </div>
-        </DialogContent>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="success"
-            onClick={() => {
-              setApproved(true);
-              setConfirmOpen(false);
-            }}
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            Confirm approval
-          </Button>
-        </DialogFooter>
-      </Dialog>
-    </div>
-  );
-}
-
-function NoteSection({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium">
-        {label}
-      </p>
-      <p className="text-sm text-clinical-ink mt-1.5 leading-relaxed">{value}</p>
     </div>
   );
 }
