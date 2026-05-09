@@ -59,9 +59,6 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-bold tracking-tight text-clinical-ink mt-0.5">
             PsychAI dashboard
           </h1>
-          <p className="text-sm text-[#848484] mt-1">
-            Data loaded from the backend. AI generation runs through the local AI service.
-          </p>
         </div>
         <Link href="/patients">
           <Button>
@@ -148,19 +145,6 @@ export default async function DashboardPage() {
                 })}
               </ul>
             )}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-white to-clinical-soft/50 border-clinical-border">
-          <CardHeader>
-            <CardTitle>Integration status</CardTitle>
-            <CardDescription>Current MVP connection path</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-clinical-ink">
-            <StatusLine label="Frontend" value="Next.js" />
-            <StatusLine label="Backend" value="FastAPI + SQLite" />
-            <StatusLine label="AI service" value="Ollama + Whisper" />
-            <StatusLine label="Vector DB" value="In memory" />
           </CardContent>
         </Card>
       </div>

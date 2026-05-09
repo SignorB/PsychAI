@@ -236,7 +236,6 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                   const totalSessions = p.total_sessions ?? p.sessions?.length ?? 0;
                   const riskFlags = p.riskFlags || [];
                   const age = p.age || "N/A";
-                  const pronouns = p.pronouns || "N/A";
                   
                   return (
                     <tr
@@ -264,7 +263,7 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                               )}
                             </div>
                             <p className="text-[11px] text-[#848484]">
-                              {age} yrs · {pronouns}
+                              {age} yrs
                             </p>
                           </div>
                         </Link>
