@@ -49,8 +49,14 @@ export async function getPatientSession(patientId: string, sessionId: string) {
 
 export async function createPatient(payload: {
   name: string;
+  surname?: string;
   age: number;
   condition: string;
+  address?: string;
+  email?: string;
+  phone?: string;
+  is_active?: boolean;
+  referral_letter?: string;
   intake_notes?: string;
 }) {
   const API_URL = getApiUrl();
@@ -106,6 +112,24 @@ export async function generateSessionNote(
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Failed to generate note: ${text}`);
+  }
+  return res.json();
+}
+
+export async function generatePreSessionRecap(patientId: string, sessionId: string) {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/patients/${patientId}/sessions/${sessionId}/pre-session-recap`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model_profile: "qwen",
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to generate pre-session recap: ${text}`);
   }
   return res.json();
 }

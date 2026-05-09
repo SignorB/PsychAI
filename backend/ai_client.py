@@ -62,6 +62,25 @@ def draft_session_note(
     )
 
 
+def answer_from_chunks(
+    *,
+    patient_id: int,
+    question: str,
+    chunks: list[dict[str, Any]],
+    model_profile: str = "qwen",
+) -> dict[str, Any]:
+    return _post(
+        "/ai/v1/rag/answer",
+        {
+            "model_profile": model_profile,
+            "patient_id": str(patient_id),
+            "question": question,
+            "retrieved_chunks": chunks,
+        },
+        timeout=240,
+    )
+
+
 def index_patient_source(
     *,
     patient_id: int,

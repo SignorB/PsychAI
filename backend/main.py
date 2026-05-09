@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from database import create_db_and_tables, get_session, seed_database
 from models import Patient, TherapySession
-from ai_client import AIServiceClientError, ai_health, ask_patient, draft_session_note, index_patient_source, semantic_search, transcribe_audio
+from ai_client import AIServiceClientError, ai_health, answer_from_chunks, ask_patient, draft_session_note, index_patient_source, semantic_search, transcribe_audio
 
 
 def _split_env_list(name: str, default: list[str]) -> list[str]:
@@ -45,6 +45,10 @@ class SemanticSearchRequest(BaseModel):
     patient_id: int | None = None
     model_profile: str = "qwen"
     top_k: int = 10
+
+
+class PreSessionRecapRequest(BaseModel):
+    model_profile: str = "qwen"
 
 
 AUDIO_UPLOAD_DIR = Path(os.getenv("AUDIO_UPLOAD_DIR", "/data/audio"))
@@ -251,6 +255,59 @@ def generate_session_note(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return {"session": therapy_session, "ai_note": ai_note, "index": index_result}
+
+
+@app.post("/patients/{patient_id}/sessions/{session_id}/pre-session-recap")
+def generate_pre_session_recap(
+    patient_id: int,
+    session_id: int,
+    request: PreSessionRecapRequest,
+    session: Session = Depends(get_session),
+):
+    patient = session.get(Patient, patient_id)
+    therapy_session = session.get(TherapySession, session_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if not therapy_session or therapy_session.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    previous_session = _find_previous_session(
+        sessions=patient.sessions,
+        current_session=therapy_session,
+    )
+    chunks = _pre_session_recap_chunks(patient=patient, previous_session=previous_session)
+    question = (
+        "Prepara un recap pre-seduta per lo psicologo usando solo la scheda paziente "
+        "e l'ultimo incontro forniti. Scrivi in italiano, in modo sintetico e operativo. "
+        "Includi: sintesi del caso, cosa e emerso nell'ultimo incontro, punti da riprendere, "
+        "attenzioni o incertezze. Non inventare informazioni."
+    )
+
+    try:
+        recap = answer_from_chunks(
+            patient_id=patient_id,
+            question=question,
+            chunks=chunks,
+            model_profile=request.model_profile,
+        )
+    except AIServiceClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {
+        "patient_id": patient_id,
+        "session_id": session_id,
+        "previous_session_id": previous_session.id if previous_session else None,
+        "recap": recap,
+        "source_chunks": [
+            {
+                "chunk_id": item["chunk"]["chunk_id"],
+                "source_id": item["chunk"]["source_id"],
+                "source_type": item["chunk"]["metadata"].get("source_type"),
+            }
+            for item in chunks
+        ],
+    }
+
 
 @app.post("/patients/{patient_id}/sessions/{session_id}/transcribe")
 def transcribe_session(
@@ -475,3 +532,62 @@ def _session_index_text(therapy_session: TherapySession) -> str:
         ]
         if part
     )
+
+
+def _find_previous_session(
+    *,
+    sessions: list[TherapySession],
+    current_session: TherapySession,
+) -> TherapySession | None:
+    previous = [
+        item
+        for item in sessions
+        if item.id != current_session.id and item.date < current_session.date
+    ]
+    if not previous:
+        previous = [item for item in sessions if item.id != current_session.id]
+    if not previous:
+        return None
+    return max(previous, key=lambda item: item.date)
+
+
+def _pre_session_recap_chunks(
+    *,
+    patient: Patient,
+    previous_session: TherapySession | None,
+) -> list[dict]:
+    patient_id = str(patient.id)
+    chunks = [
+        {
+            "chunk": {
+                "chunk_id": f"patient_{patient.id}_card",
+                "patient_id": patient_id,
+                "source_id": f"patient_{patient.id}",
+                "text": _patient_index_text(patient),
+                "metadata": {
+                    "record_type": "patient",
+                    "source_type": "patient_card",
+                },
+            },
+            "score": 1.0,
+        }
+    ]
+    if previous_session:
+        chunks.append(
+            {
+                "chunk": {
+                    "chunk_id": f"session_{previous_session.id}_last",
+                    "patient_id": patient_id,
+                    "source_id": f"session_{previous_session.id}",
+                    "text": _session_index_text(previous_session),
+                    "metadata": {
+                        "record_type": "session",
+                        "source_type": "last_session",
+                        "session_id": str(previous_session.id),
+                        "session_date": previous_session.date,
+                    },
+                },
+                "score": 1.0,
+            }
+        )
+    return chunks

@@ -1,16 +1,10 @@
 import Link from "next/link";
 import {
-  AlertCircle,
   ArrowRight,
-  CalendarDays,
-  CheckCircle2,
   Clock,
   FileCheck2,
-  MapPin,
-  Mic,
   Sparkles,
   Users,
-  Video,
 } from "lucide-react";
 import {
   Card,
@@ -22,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getPatients, getSessions } from "@/lib/api";
-import { RevealOverlay } from "@/components/ui/reveal-overlay";
+import { DashboardPreSessionRecap } from "./DashboardPreSessionRecap";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +40,8 @@ export default async function DashboardPage() {
     .sort((a, b) => +new Date(b.date) - +new Date(a.date))
     .slice(0, 5);
   const patientById = new Map(patients.map((patient) => [patient.id, patient]));
+  const nextSession = recent[0] || null;
+  const nextPatient = nextSession ? patientById.get(nextSession.patient_id) : null;
 
   const stats = [
     { label: "Patients", value: patients.length, icon: Users },
@@ -164,76 +160,23 @@ export default async function DashboardPage() {
             </div>
             {recent.length > 0 ? (
               <>
-                <CardTitle className="text-[18px]">{patientById.get(recent[0].patient_id)?.name || "Amelia Thornton"}</CardTitle>
+                <CardTitle className="text-[18px]">{nextPatient?.name || "Amelia Thornton"}</CardTitle>
                 <CardDescription className="flex items-center gap-1.5 mt-1.5 text-[13px]">
                   <Clock className="h-3 w-3" strokeWidth={1.75} />
-                  {new Date(recent[0].date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · 50 min · CBT with exposure — weekly
+                  {new Date(nextSession.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · 50 min · CBT with exposure — weekly
                 </CardDescription>
               </>
             ) : (
                <CardTitle className="text-lg">No upcoming sessions</CardTitle>
             )}
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col relative">
-            <RevealOverlay>
-              <div className="space-y-6 flex-1 flex flex-col">
-                <div>
-                  <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium mb-2.5">
-                    Themes from last 3 sessions
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Avoidance</Badge>
-                    <Badge variant="outline" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Catastrophic thinking</Badge>
-                    <Badge variant="outline" className="bg-clinical-soft hover:bg-clinical-soft text-clinical-ink font-medium px-3 py-1">Self-image</Badge>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium mb-2.5">
-                    Open items
-                  </p>
-                  <div className="flex items-start gap-2.5 text-[14px] text-clinical-ink">
-                    <CheckCircle2 className="h-4 w-4 text-[#848484] mt-0.5 shrink-0" strokeWidth={1.75} />
-                    <span>Attend one tutorial without leaving early</span>
-                  </div>
-                </div>
-
-                <div className="flex-1">
-                  <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium mb-2.5">
-                    Unresolved
-                  </p>
-                  <div className="flex items-start gap-2.5 text-[14px] text-clinical-ink">
-                    <AlertCircle className="h-4 w-4 text-[#E67E22] mt-0.5 shrink-0" strokeWidth={1.75} />
-                    <span>Disclosure to academic advisor</span>
-                  </div>
-                </div>
-
-                <div className="pt-2 mt-auto">
-                  <Link href={recent.length > 0 ? `/patients/${recent[0].patient_id}` : "/patients"} className="block pointer-events-auto">
-                    <Button variant="outline" className="w-full bg-white flex justify-center gap-2 items-center h-11 text-clinical-ink font-medium border-clinical-border">
-                      Open patient card
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                </div>
-
-                <p className="text-[11px] text-[#848484] text-center mt-4">
-                  Generated locally via RAG · {patients.length} patients indexed
-                </p>
-              </div>
-            </RevealOverlay>
-          </CardContent>
+          <DashboardPreSessionRecap
+            patient={nextPatient || null}
+            session={nextSession}
+            patientCount={patients.length}
+          />
         </Card>
       </div>
-    </div>
-  );
-}
-
-function StatusLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-clinical-border last:border-0 pb-2 last:pb-0">
-      <span className="text-[#848484]">{label}</span>
-      <span className="font-medium">{value}</span>
     </div>
   );
 }
