@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -11,6 +11,8 @@ import {
   Save,
   Sparkles,
   AlertTriangle,
+  Square,
+  Upload,
 } from "lucide-react";
 import {
   Card,
@@ -21,7 +23,13 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getPatient, getPatientSession, generateSessionNote, askPatient } from "@/lib/api";
+import {
+  getPatient,
+  getPatientSession,
+  generateSessionNote,
+  transcribeSessionAudio,
+  askPatient,
+} from "@/lib/api";
 
 type Patient = {
   id: number;
@@ -62,7 +70,13 @@ export default function SessionDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAsking, setIsAsking] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState("");
   const [error, setError] = useState("");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -84,6 +98,12 @@ export default function SessionDetailPage() {
     }
     load();
   }, [params.id, params.sessionId]);
+
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
 
   const dateLabel = useMemo(() => {
     if (!session?.date) return "";
@@ -124,6 +144,80 @@ export default function SessionDetailPage() {
     } finally {
       setIsAsking(false);
     }
+  }
+
+  async function startRecording() {
+    setError("");
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setError("Audio recording is not available in this browser or origin. Use audio upload instead.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredType = "audio/webm;codecs=opus";
+      const recorder = new MediaRecorder(
+        stream,
+        MediaRecorder.isTypeSupported(preferredType) ? { mimeType: preferredType } : undefined
+      );
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const blob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start recording");
+    }
+  }
+
+  function stopRecording() {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    setIsRecording(false);
+  }
+
+  async function submitAudio(blob: Blob, filename: string) {
+    setIsTranscribing(true);
+    setError("");
+    try {
+      const response = await transcribeSessionAudio(params.id, params.sessionId, blob, {
+        filename,
+        append: Boolean(transcript.trim()),
+      });
+      setSession(response.session);
+      setTranscript(response.session.transcript || response.transcription?.raw_text || "");
+      setGenerated(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to transcribe audio");
+    } finally {
+      setIsTranscribing(false);
+    }
+  }
+
+  async function handleTranscribeRecording() {
+    if (!audioBlob) return;
+    await submitAudio(audioBlob, "session-recording.webm");
+  }
+
+  async function handleAudioFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioBlob(file);
+    setAudioUrl(URL.createObjectURL(file));
+    await submitAudio(file, file.name);
   }
 
   if (isLoading) {
@@ -191,13 +285,54 @@ export default function SessionDetailPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Mic className="h-4 w-4 text-[#848484]" />
-                Transcript input
+                Voice transcription
               </CardTitle>
               <CardDescription>
-                For now this is editable text. Later it will be populated by Whisper.
+                Record or upload audio, then transcribe it with local Whisper.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                {!isRecording ? (
+                  <Button variant="outline" onClick={startRecording} disabled={isTranscribing}>
+                    <Mic className="h-4 w-4" /> Record
+                  </Button>
+                ) : (
+                  <Button variant="destructive" onClick={stopRecording}>
+                    <Square className="h-4 w-4" /> Stop
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={handleTranscribeRecording}
+                  disabled={!audioBlob || isRecording || isTranscribing}
+                >
+                  {isTranscribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {isTranscribing ? "Transcribing..." : "Transcribe"}
+                </Button>
+                <label className="inline-flex items-center justify-center gap-2 h-9 rounded-md border border-clinical-border bg-white px-3 text-sm font-medium text-clinical-ink hover:bg-clinical-soft cursor-pointer">
+                  <Upload className="h-4 w-4" />
+                  Upload audio
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="sr-only"
+                    onChange={handleAudioFile}
+                    disabled={isTranscribing || isRecording}
+                  />
+                </label>
+                {isRecording && (
+                  <span className="inline-flex items-center gap-2 text-xs text-red-700">
+                    <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
+                    Recording
+                  </span>
+                )}
+              </div>
+
+              {audioUrl && (
+                <audio controls src={audioUrl} className="w-full" />
+              )}
+
               <textarea
                 value={transcript}
                 onChange={(event) => setTranscript(event.target.value)}

@@ -25,6 +25,7 @@ services:
       BACKEND_CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
     volumes:
       - backend-data:/data
+      - session-audio:/data/audio
     expose:
       - "8000"
     depends_on:
@@ -58,7 +59,7 @@ services:
       WHISPER_CPP_LANGUAGE: it
     volumes:
       - whisper-models:/models/whisper
-      - ./ai/data/audio:/data/audio:ro
+      - session-audio:/data/audio
     expose:
       - "8010"
     depends_on:
@@ -94,3 +95,4 @@ volumes:
   backend-data:
   ollama-data:
   whisper-models:
+  session-audio:

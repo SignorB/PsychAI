@@ -1,14 +1,18 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 import os
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from datetime import datetime
+from pathlib import Path
+import shutil
+import subprocess
+from uuid import uuid4
 
 from database import create_db_and_tables, get_session, seed_database
 from models import Patient, TherapySession
-from ai_client import AIServiceClientError, ai_health, ask_patient, draft_session_note, index_patient_source
+from ai_client import AIServiceClientError, ai_health, ask_patient, draft_session_note, index_patient_source, transcribe_audio
 
 
 def _split_env_list(name: str, default: list[str]) -> list[str]:
@@ -28,6 +32,9 @@ class PatientQuestionRequest(BaseModel):
     question: str
     model_profile: str = "qwen"
     top_k: int = 5
+
+
+AUDIO_UPLOAD_DIR = Path(os.getenv("AUDIO_UPLOAD_DIR", "/data/audio"))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -201,10 +208,76 @@ def generate_session_note(
 
     return {"session": therapy_session, "ai_note": ai_note, "index": index_result}
 
-# TODO: implement STT to transcribe the session
 @app.post("/patients/{patient_id}/sessions/{session_id}/transcribe")
-def transcribe_session(patient_id: str, session_id: str):
-    return {"patient_id": patient_id, "session_id": session_id}
+def transcribe_session(
+    patient_id: int,
+    session_id: int,
+    audio: UploadFile = File(...),
+    append: bool = Form(False),
+    session: Session = Depends(get_session),
+):
+    therapy_session = session.get(TherapySession, session_id)
+    if not therapy_session or therapy_session.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    AUDIO_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    upload_id = uuid4().hex
+    suffix = Path(audio.filename or "").suffix or ".webm"
+    source_path = AUDIO_UPLOAD_DIR / f"session_{session_id}_{upload_id}{suffix}"
+    wav_path = AUDIO_UPLOAD_DIR / f"session_{session_id}_{upload_id}.wav"
+
+    try:
+        with source_path.open("wb") as output:
+            shutil.copyfileobj(audio.file, output)
+        _convert_audio_to_wav(source_path=source_path, wav_path=wav_path)
+        transcription = transcribe_audio(
+            patient_id=patient_id,
+            session_id=session_id,
+            audio_path=str(wav_path),
+        )
+    except AIServiceClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise HTTPException(status_code=400, detail=f"Audio transcription failed: {exc}") from exc
+    finally:
+        audio.file.close()
+
+    transcribed_text = transcription.get("raw_text", "").strip()
+    if append and therapy_session.transcript:
+        therapy_session.transcript = f"{therapy_session.transcript.rstrip()}\n\n{transcribed_text}"
+    else:
+        therapy_session.transcript = transcribed_text
+    session.add(therapy_session)
+    session.commit()
+    session.refresh(therapy_session)
+
+    return {
+        "session": therapy_session,
+        "transcription": transcription,
+        "audio_path": str(wav_path),
+    }
+
+
+def _convert_audio_to_wav(*, source_path: Path, wav_path: Path) -> None:
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(source_path),
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-sample_fmt",
+            "s16",
+            str(wav_path),
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
 
 
 @app.post("/patients/{patient_id}/ask")

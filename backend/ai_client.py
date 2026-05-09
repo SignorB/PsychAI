@@ -15,6 +15,27 @@ def ai_health() -> dict[str, Any]:
     return _get("/ai/v1/health")
 
 
+def transcribe_audio(
+    *,
+    patient_id: int,
+    session_id: int,
+    audio_path: str,
+    language: str = "it",
+) -> dict[str, Any]:
+    return _post(
+        "/ai/v1/transcriptions",
+        {
+            "patient_id": str(patient_id),
+            "session_id": str(session_id),
+            "audio_path": audio_path,
+            "language": language,
+            "speaker_mode": "single_speaker",
+            "model": "base",
+        },
+        timeout=600,
+    )
+
+
 def draft_session_note(
     *,
     patient_id: int,

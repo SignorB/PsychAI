@@ -105,6 +105,31 @@ export async function generateSessionNote(
   return res.json();
 }
 
+export async function transcribeSessionAudio(
+  patientId: string,
+  sessionId: string,
+  audio: Blob,
+  options: {
+    filename?: string;
+    append?: boolean;
+  } = {}
+) {
+  const API_URL = getApiUrl();
+  const formData = new FormData();
+  formData.append("audio", audio, options.filename || "session-recording.webm");
+  formData.append("append", options.append ? "true" : "false");
+
+  const res = await fetch(`${API_URL}/patients/${patientId}/sessions/${sessionId}/transcribe`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to transcribe audio: ${text}`);
+  }
+  return res.json();
+}
+
 export async function askPatient(patientId: string, question: string) {
   const API_URL = getApiUrl();
   const res = await fetch(`${API_URL}/patients/${patientId}/ask`, {
