@@ -1,0 +1,37 @@
+services:
+  ai-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      BOOTSTRAP_OLLAMA: "true"
+      BOOTSTRAP_OLLAMA_MODELS: qwen2.5:3b-instruct,phi3:mini,nomic-embed-text
+      BOOTSTRAP_WHISPER_MODEL: "true"
+      WHISPER_CPP_MODEL_NAME: base
+      WHISPER_CPP_EXECUTABLE: /opt/whisper.cpp/whisper-cli
+      WHISPER_CPP_MODEL_PATH: /models/whisper/ggml-base.bin
+      WHISPER_CPP_LANGUAGE: it
+    ports:
+      - "8010:8010"
+    volumes:
+      - whisper-models:/models/whisper
+      - ./data/audio:/data/audio:ro
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  ollama-data:
+  whisper-models:

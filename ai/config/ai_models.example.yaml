@@ -1,0 +1,36 @@
+speech_to_text:
+  provider: whisper_cpp
+  model: base
+  executable: whisper-cli
+  language: it
+  batch_mode: true
+
+llm:
+  provider: ollama
+  model: qwen2.5:3b-instruct
+  base_url: http://localhost:11434
+  temperature: 0.1
+  top_p: 0.9
+  json_mode: true
+
+embeddings:
+  provider: ollama
+  model: nomic-embed-text
+  base_url: http://localhost:11434
+
+rag:
+  chunk_size_chars: 1400
+  chunk_overlap_chars: 180
+  top_k: 5
+
+profiles:
+  default: qwen
+  available:
+    qwen:
+      llm: qwen2.5:3b-instruct
+      embeddings: nomic-embed-text
+      stt: whisper.cpp base
+    phi:
+      llm: phi3:mini
+      embeddings: nomic-embed-text
+      stt: whisper.cpp base

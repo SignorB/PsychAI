@@ -5,3 +5,6 @@ backend/__pycache__/
 node_modules/
 .next/
 .canvas/
+ai/.agents/
+ai/.codex/
+ai/.venv/
