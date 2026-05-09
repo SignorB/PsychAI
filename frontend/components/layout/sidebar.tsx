@@ -101,17 +101,7 @@ export function Sidebar({ pendingCount }: { pendingCount?: number }) {
       </nav>
 
       <div className="px-3 py-4 border-t border-white/10 flex flex-col gap-1">
-        <Link
-          href="/settings"
-          title={isCollapsed ? "Settings" : undefined}
-          className={cn(
-            "flex items-center rounded-md text-sm text-white/70 hover:bg-white/10 hover:text-white transition-colors",
-            isCollapsed ? "justify-center h-10 w-full" : "px-3 py-2.5 gap-3"
-          )}
-        >
-          <Settings className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-          {!isCollapsed && <span className="truncate">Settings</span>}
-        </Link>
+
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
