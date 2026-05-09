@@ -76,6 +76,8 @@ export default async function PatientCard({ params }: { params: { id: string } }
   const pTotalSessions = patientSessions.length;
   const pIntakeNotes =
     pData.intake_notes || pData.intakeNotes || "No intake notes available.";
+  const pHistoryReport = pData.patient_history_report || "";
+  const pHistoryReportGeneratedAt = pData.patient_history_report_generated_at || "";
   const pDiagnosis = pData.diagnosis || (pData.condition ? [pData.condition] : []);
   const pModality = pData.modality || "Not specified";
   const pThemes = pData.themes || [];
@@ -221,17 +223,22 @@ export default async function PatientCard({ params }: { params: { id: string } }
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-sm leading-relaxed text-clinical-ink">
-                  <p className="mb-4">
-                    The patient presented with ongoing symptoms of social anxiety, which have been present since early adolescence but have exacerbated recently due to increased academic pressures and a transition to a new university environment.
+                {pHistoryReport ? (
+                  <div className="space-y-3">
+                    <p className="text-sm leading-relaxed text-clinical-ink whitespace-pre-wrap">
+                      {pHistoryReport}
+                    </p>
+                    {pHistoryReportGeneratedAt && (
+                      <p className="text-[11px] text-[#848484]">
+                        Updated {new Date(pHistoryReportGeneratedAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm leading-relaxed text-[#848484]">
+                    The longitudinal patient history report will be generated after a session note is confirmed by the clinician.
                   </p>
-                  <p className="mb-4">
-                    Key developmental milestones were met, but the patient reports a history of feeling "on the outside" during middle and high school. No significant medical history. Previous brief trial of CBT 3 years ago was partially successful, but patient discontinued when symptoms temporarily abated.
-                  </p>
-                  <p>
-                    Currently, the primary concern is avoiding tutorials and seminars due to fear of negative evaluation, leading to academic underperformance and feelings of guilt.
-                  </p>
-                </div>
+                )}
               </CardContent>
             </Card>
             </div>

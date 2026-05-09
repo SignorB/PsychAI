@@ -1,6 +1,7 @@
 import os
 
 from sqlmodel import SQLModel, Session, create_engine, select
+from sqlalchemy import text
 from models import Patient, TherapySession
 
 # Initialize local SQLite database
@@ -17,6 +18,23 @@ def create_db_and_tables():
     Creates all tables based on SQLModel definitions.
     """
     SQLModel.metadata.create_all(engine)
+    ensure_schema_columns()
+
+
+def ensure_schema_columns():
+    """
+    Lightweight SQLite migration for local development.
+    SQLModel create_all does not add new columns to existing tables.
+    """
+    with engine.begin() as connection:
+        columns = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info(patient)")).fetchall()
+        }
+        if "patient_history_report" not in columns:
+            connection.execute(text("ALTER TABLE patient ADD COLUMN patient_history_report TEXT"))
+        if "patient_history_report_generated_at" not in columns:
+            connection.execute(text("ALTER TABLE patient ADD COLUMN patient_history_report_generated_at TEXT"))
 
 
 def get_session():

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Depends
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 import os
@@ -10,7 +10,7 @@ import shutil
 import subprocess
 from uuid import uuid4
 
-from database import create_db_and_tables, get_session, seed_database
+from database import create_db_and_tables, engine, get_session, seed_database
 from models import Patient, TherapySession
 from ai_client import AIServiceClientError, ai_health, answer_from_chunks, ask_patient, draft_session_note, index_patient_source, semantic_search, transcribe_audio
 
@@ -48,6 +48,10 @@ class SemanticSearchRequest(BaseModel):
 
 
 class PreSessionRecapRequest(BaseModel):
+    model_profile: str = "qwen"
+
+
+class PatientHistoryReportRequest(BaseModel):
     model_profile: str = "qwen"
 
 
@@ -200,7 +204,12 @@ def upload_session_notes(patient_id: int, session_id: int, request: SessionNoteR
 
 
 @app.post("/patients/{patient_id}/sessions/{session_id}/approve")
-def approve_session(patient_id: int, session_id: int, session: Session = Depends(get_session)):
+def approve_session(
+    patient_id: int,
+    session_id: int,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
     therapy_session = session.get(TherapySession, session_id)
     if not therapy_session or therapy_session.patient_id != patient_id:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -208,6 +217,7 @@ def approve_session(patient_id: int, session_id: int, session: Session = Depends
     session.add(therapy_session)
     session.commit()
     session.refresh(therapy_session)
+    background_tasks.add_task(_regenerate_patient_history_report, patient_id)
     return therapy_session
 
 
@@ -306,6 +316,36 @@ def generate_pre_session_recap(
             }
             for item in chunks
         ],
+    }
+
+
+@app.post("/patients/{patient_id}/history-report/regenerate")
+def regenerate_patient_history_report(
+    patient_id: int,
+    request: PatientHistoryReportRequest,
+    session: Session = Depends(get_session),
+):
+    patient = session.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    try:
+        report = _build_patient_history_report(
+            patient=patient,
+            model_profile=request.model_profile,
+        )
+        patient.patient_history_report = report
+        patient.patient_history_report_generated_at = datetime.utcnow().isoformat() + "Z"
+        session.add(patient)
+        session.commit()
+        session.refresh(patient)
+    except AIServiceClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {
+        "patient_id": patient_id,
+        "patient_history_report": patient.patient_history_report,
+        "generated_at": patient.patient_history_report_generated_at,
     }
 
 
@@ -591,6 +631,110 @@ def _pre_session_recap_chunks(
             }
         )
     return chunks
+
+
+def _regenerate_patient_history_report(patient_id: int) -> None:
+    try:
+        with Session(engine) as session:
+            patient = session.get(Patient, patient_id)
+            if not patient:
+                return
+            report = _build_patient_history_report(patient=patient)
+            patient.patient_history_report = report
+            patient.patient_history_report_generated_at = datetime.utcnow().isoformat() + "Z"
+            session.add(patient)
+            session.commit()
+    except Exception as exc:
+        print(f"Failed to regenerate patient history report for patient {patient_id}: {exc}")
+
+
+def _build_patient_history_report(
+    *,
+    patient: Patient,
+    model_profile: str = "qwen",
+) -> str:
+    approved_sessions = sorted(
+        [
+            item
+            for item in patient.sessions
+            if item.approved and (item.clinical_note or item.transcript)
+        ],
+        key=lambda item: item.date,
+    )
+    chunks = _patient_history_report_chunks(patient=patient, sessions=approved_sessions)
+    question = (
+        "Genera un report clinico longitudinale dettagliato per la scheda paziente, "
+        "basato sulla scheda iniziale e sui riassunti delle sedute approvate. "
+        "Scrivi in italiano professionale. Struttura il report in paragrafi con queste aree: "
+        "quadro iniziale, evoluzione nel tempo, temi ricorrenti, sintomi e funzionamento, "
+        "interventi o homework gia emersi, punti aperti per il trattamento. "
+        "Non inventare diagnosi, eventi o rischi non presenti nelle fonti. "
+        "Se le informazioni sono insufficienti, dichiaralo nel testo."
+    )
+    answer = answer_from_chunks(
+        patient_id=patient.id,
+        question=question,
+        chunks=chunks,
+        model_profile=model_profile,
+    )
+    return answer.get("answer", "").strip()
+
+
+def _patient_history_report_chunks(
+    *,
+    patient: Patient,
+    sessions: list[TherapySession],
+) -> list[dict]:
+    patient_id = str(patient.id)
+    chunks = [
+        {
+            "chunk": {
+                "chunk_id": f"patient_{patient.id}_intake",
+                "patient_id": patient_id,
+                "source_id": f"patient_{patient.id}",
+                "text": _patient_index_text(patient),
+                "metadata": {
+                    "record_type": "patient",
+                    "source_type": "patient_card",
+                },
+            },
+            "score": 1.0,
+        }
+    ]
+    for index, therapy_session in enumerate(sessions, start=1):
+        chunks.append(
+            {
+                "chunk": {
+                    "chunk_id": f"session_{therapy_session.id}_approved_summary",
+                    "patient_id": patient_id,
+                    "source_id": f"session_{therapy_session.id}",
+                    "text": _approved_session_report_text(
+                        therapy_session=therapy_session,
+                        position=index,
+                    ),
+                    "metadata": {
+                        "record_type": "session",
+                        "source_type": "approved_session_summary",
+                        "session_id": str(therapy_session.id),
+                        "session_date": _date_only(therapy_session.date),
+                    },
+                },
+                "score": 1.0,
+            }
+        )
+    return chunks
+
+
+def _approved_session_report_text(*, therapy_session: TherapySession, position: int) -> str:
+    return "\n".join(
+        part
+        for part in [
+            f"Seduta approvata {position} del {_date_only(therapy_session.date)}",
+            f"Nota clinica approvata:\n{therapy_session.clinical_note}" if therapy_session.clinical_note else "",
+            f"Trascrizione:\n{therapy_session.transcript}" if therapy_session.transcript and not therapy_session.clinical_note else "",
+        ]
+        if part
+    )
 
 
 def _date_only(value: str | None) -> str:

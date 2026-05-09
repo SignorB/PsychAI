@@ -36,6 +36,8 @@ class Patient(SQLModel, table=True):
     is_active: bool = True
     referral_letter: Optional[str] = None
     intake_notes: Optional[str] = None
+    patient_history_report: Optional[str] = None
+    patient_history_report_generated_at: Optional[str] = None
     
     # One-to-many relationship with TherapySession
     sessions: List[TherapySession] = Relationship(back_populates="patient")
