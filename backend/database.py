@@ -1,8 +1,10 @@
+import os
+
 from sqlmodel import SQLModel, Session, create_engine, select
 from models import Patient, TherapySession
 
 # Initialize local SQLite database
-sqlite_file_name = "psychai.db"
+sqlite_file_name = os.getenv("SQLITE_FILE_NAME", "psychai.db")
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
 # check_same_thread=False allows FastAPI to share the connection across requests

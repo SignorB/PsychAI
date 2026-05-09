@@ -1,0 +1,96 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: /api/backend
+    environment:
+      NEXT_PUBLIC_API_URL: /api/backend
+      INTERNAL_API_URL: http://backend:8000
+      BACKEND_INTERNAL_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      AI_SERVICE_URL: http://ai-service:8010
+      SQLITE_FILE_NAME: /data/psychai.db
+      BACKEND_CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+    volumes:
+      - backend-data:/data
+    expose:
+      - "8000"
+    depends_on:
+      ai-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  ai-service:
+    build:
+      context: ./ai
+      dockerfile: Dockerfile
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      BOOTSTRAP_OLLAMA: "true"
+      BOOTSTRAP_OLLAMA_MODELS: qwen2.5:3b-instruct,phi3:mini,nomic-embed-text
+      BOOTSTRAP_WHISPER_MODEL: "true"
+      WHISPER_CPP_MODEL_NAME: base
+      WHISPER_CPP_EXECUTABLE: /opt/whisper.cpp/whisper-cli
+      WHISPER_CPP_MODEL_PATH: /models/whisper/ggml-base.bin
+      WHISPER_CPP_LANGUAGE: it
+    volumes:
+      - whisper-models:/models/whisper
+      - ./ai/data/audio:/data/audio:ro
+    expose:
+      - "8010"
+    depends_on:
+      - ollama
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/ai/v1/health', timeout=5).read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-data:/root/.ollama
+    expose:
+      - "11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  backend-data:
+  ollama-data:
+  whisper-models:

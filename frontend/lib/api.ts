@@ -1,11 +1,14 @@
 const CONFIGURED_API_URL = process.env.NEXT_PUBLIC_API_URL;
+const INTERNAL_API_URL = process.env.INTERNAL_API_URL;
 const API_PORT = process.env.NEXT_PUBLIC_API_PORT || "8000";
 
 function getApiUrl() {
-  if (CONFIGURED_API_URL) return CONFIGURED_API_URL;
   if (typeof window !== "undefined") {
+    if (CONFIGURED_API_URL) return CONFIGURED_API_URL;
     return `${window.location.protocol}//${window.location.hostname}:${API_PORT}`;
   }
+  if (INTERNAL_API_URL) return INTERNAL_API_URL;
+  if (CONFIGURED_API_URL?.startsWith("http")) return CONFIGURED_API_URL;
   return `http://localhost:${API_PORT}`;
 }
 

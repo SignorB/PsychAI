@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+*.pyc
+psychai.db
+.DS_Store
