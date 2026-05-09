@@ -1,6 +1,8 @@
 import { getSessions } from "@/lib/api";
 import CalendarClient from "./CalendarClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function CalendarPage() {
   let sessions = [];
   try {

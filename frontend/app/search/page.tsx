@@ -10,14 +10,32 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { getPatients, getSessions } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
+type BackendPatient = {
+  id: number;
+  name: string;
+  condition?: string;
+  intake_notes?: string;
+};
+
+type BackendSession = {
+  id: number;
+  patient_id: number;
+  date?: string;
+  clinical_note?: string | null;
+};
+
 export default async function AdvancedSearchPage() {
   const [patientsData, sessionsData] = await Promise.all([
     getPatients(),
     getSessions(),
   ]);
-  const patients = patientsData.patients || [];
-  const sessions = sessionsData.sessions || [];
-  const patientById = new Map(patients.map((patient: any) => [patient.id, patient]));
+  const patients: BackendPatient[] = patientsData.patients || [];
+  const sessions: BackendSession[] = sessionsData.sessions || [];
+  const patientById = new Map<number, BackendPatient>(
+    patients.map((patient) => [patient.id, patient])
+  );
 
   return (
     <div className="space-y-6">
@@ -54,7 +72,7 @@ export default async function AdvancedSearchPage() {
           </CardHeader>
           <CardContent className="p-0">
             <ul className="divide-y divide-clinical-border">
-              {patients.map((patient: any) => (
+              {patients.map((patient) => (
                 <li key={patient.id}>
                   <Link
                     href={`/patients/${patient.id}`}
@@ -91,7 +109,7 @@ export default async function AdvancedSearchPage() {
           </CardHeader>
           <CardContent className="p-0">
             <ul className="divide-y divide-clinical-border">
-              {sessions.map((session: any) => {
+              {sessions.map((session) => {
                 const patient = patientById.get(session.patient_id);
                 return (
                   <li key={session.id}>

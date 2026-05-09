@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getPatients, getSessions } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 export default async function PendingPage() {
   let sessions: any[] = [];
   let patients: any[] = [];
