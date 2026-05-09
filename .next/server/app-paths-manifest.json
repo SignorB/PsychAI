@@ -1,6 +1,10 @@
 {
-  "/patients/[id]/sessions/[sessionId]/page": "app/patients/[id]/sessions/[sessionId]/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/page": "app/page.js",
   "/calendar/page": "app/calendar/page.js",
+  "/patients/[id]/page": "app/patients/[id]/page.js",
+  "/search/page": "app/search/page.js",
+  "/notes/page": "app/notes/page.js",
+  "/pending/page": "app/pending/page.js",
   "/patients/page": "app/patients/page.js"
 }
