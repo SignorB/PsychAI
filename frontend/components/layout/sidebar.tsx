@@ -20,12 +20,11 @@ const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/patients", label: "Patients", icon: Users },
   { href: "/calendar", label: "Calendar", icon: Calendar },
-  { href: "/notes", label: "Free note", icon: StickyNote },
   { href: "/search", label: "Advanced search", icon: SearchCheck },
-  { href: "/pending", label: "Sessions to close", icon: ClipboardCheck, badge: 3 },
+  { href: "/pending", label: "Sessions to close", icon: ClipboardCheck },
 ];
 
-export function Sidebar() {
+export function Sidebar({ pendingCount }: { pendingCount?: number }) {
   const pathname = usePathname();
 
   return (
@@ -71,7 +70,11 @@ export function Sidebar() {
             >
               <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
               <span className="flex-1">{item.label}</span>
-              {item.badge ? (
+              {item.href === "/pending" && pendingCount ? (
+                <Badge variant="primary" className="h-5 min-w-5 justify-center px-1.5">
+                  {pendingCount}
+                </Badge>
+              ) : item.badge ? (
                 <Badge variant="primary" className="h-5 min-w-5 justify-center px-1.5">
                   {item.badge}
                 </Badge>
