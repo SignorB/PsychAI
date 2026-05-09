@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   Users,
   Calendar,
-  Brain,
   Lock,
   Settings,
   StickyNote,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import Image from "next/image";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -32,9 +32,14 @@ export function Sidebar() {
     <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-clinical-border bg-white">
       <div className="px-6 py-6 border-b border-clinical-border">
         <Link href="/" className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-lg bg-clinical-brand flex items-center justify-center">
-            <Brain className="h-5 w-5 text-white" strokeWidth={1.75} />
-          </div>
+          <Image
+            src="/logo.svg"
+            alt="PsychAI"
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-lg"
+            priority
+          />
           <div>
             <div className="font-bold text-[15px] tracking-tight text-clinical-ink">
               PsychAI
