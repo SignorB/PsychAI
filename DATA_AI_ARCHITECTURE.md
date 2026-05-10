@@ -1,16 +1,13 @@
 # Data Layer and AI Layer Architecture
 
-This document explains the current architecture, the main design decisions, what was tried, and what we learned while building the data layer and AI layer of PsychAI.
-
 ## Goals
 
 PsychAI is designed as a local-first clinical workspace for psychologists. The main product goal is to make session documentation, patient history retrieval, and pre-session preparation faster without sending sensitive clinical data to external services.
 
 The architecture therefore optimizes for:
 
-- Local execution.
+- Local execution of open weight ai models.
 - Explicit clinician approval before notes become part of the confirmed record.
-- Simple inspectable persistence during MVP development.
 - Replaceable AI providers and models.
 - Good-enough performance on consumer hardware.
 
@@ -24,98 +21,115 @@ Frontend
       -> whisper.cpp for speech-to-text
       -> Ollama for LLM generation
       -> Ollama embeddings for semantic search
-      -> SQLite vector index for retrieval
+      -> Vector index for retrieval
 ```
 
-The frontend never talks directly to Ollama or whisper.cpp. It talks to the backend. The backend owns clinical records and calls the AI service when transcription, note generation, embedding, indexing, or retrieval is needed.
+The system is deliberately split into two backend processes:
+
+- `backend/`: product API and clinical data ownership.
+- `ai/`: model runtime, transcription, embeddings, generation, and retrieval primitives.
+
+This split is not only organizational. It protects the clinical domain from model-runtime churn. The product backend can keep stable concepts like patients, sessions, approvals, and reports while the AI service can change model names, inference runtimes, vector indexes, and prompt formats.
 
 ## Data Layer
 
-### Current Storage
+### Backend Technology Choice
 
-The backend uses SQLite through SQLModel.
+The data layer uses FastAPI, SQLModel, and SQLite.
 
-Core tables:
+FastAPI was chosen because the project already has Python-heavy AI components. Keeping the backend in Python reduces integration friction with the AI service, avoids a second language runtime for domain APIs, and makes it easy to share Pydantic-style request/response validation.
 
-- `Patient`
-- `TherapySession`
-- `TrainingPair`
+SQLModel was chosen over raw SQLAlchemy because the schema is still evolving quickly. It gives us:
 
-`Patient` stores demographic/contact fields, clinical intake fields, status, and generated patient history reports.
+- typed Python models;
+- Pydantic-compatible serialization;
+- simple relationships between patients and sessions;
+- less boilerplate than a full repository pattern during MVP work.
 
-`TherapySession` stores scheduled sessions, transcripts, AI clinical notes, approval status, timestamps, and patient linkage.
+SQLite was chosen because the product is local-first. The database can live inside a Docker volume or as a local file, is easy to reset, and has no separate server process. For the current scale of one clinician, tens of patients, and hundreds or low thousands of sessions, SQLite is a pragmatic fit.
 
-`TrainingPair` stores transcript/final-note pairs produced when a clinician confirms a session note. These pairs are intended for future LoRA fine-tuning.
+The tradeoff is that SQLite plus ad-hoc migrations is not a final multi-user architecture. If the product grows into a synchronized or team-based deployment, the natural migration path is PostgreSQL with explicit migrations.
 
-### Patient Status Model
+### Clinical Record Ownership
 
-The original model only had `is_active: bool`, which was not expressive enough for the product state we wanted to demo.
+The backend is the owner of clinical truth. The AI service never directly mutates the clinical database.
 
-We added:
+This design keeps the following boundary clear:
 
 ```text
-status: "Active" | "Discharged" | "On hold"
+AI service = suggestions, transformations, retrieval primitives
+Backend = patient records, session lifecycle, approvals, training data eligibility
 ```
 
-`is_active` is still kept for backward compatibility, but `status` is now the more realistic product field.
+That boundary is important because generated content is not automatically a clinical record. A note becomes durable clinical data only after it is saved or confirmed through the backend workflow.
 
-### Demo Dataset
+### Current Domain Model
 
-The local seed data was replaced with a more realistic deterministic dataset:
+The core model is intentionally compact:
 
-- 20 patients.
-- 10 active, 6 discharged, 4 on hold.
-- 70 past transcribed sessions.
-- 20 transcribed sessions not confirmed.
-- 10 transcribed sessions without AI summaries.
-- 20 future calendar appointments across this week and next week for the 10 active patients.
-- Session transcripts around 2500 characters.
+- `Patient`: identity, contact fields, clinical status, intake notes, generated history report.
+- `TherapySession`: appointment/session date, transcript, clinical note, approval status, patient link.
+- `TrainingPair`: transcript plus clinician-confirmed final note for later LoRA fine-tuning.
 
-This gives the UI realistic density for dashboard, patient timeline, pending notes, calendar, and RAG workflows.
+We currently use one `TherapySession` table for both scheduled appointments and completed sessions. This avoids premature complexity, but the UI must infer state carefully:
 
-### Scheduling vs Clinical Sessions
+- no transcript: scheduled appointment or not started yet;
+- transcript but no clinical note: note generation pending;
+- clinical note but not approved: AI draft or edited draft;
+- approved: confirmed clinical record.
 
-For MVP simplicity, scheduled appointments and completed sessions are both represented by `TherapySession`.
+This explains why pending-note counters explicitly filter for `transcript && !clinical_note`. Without that condition, future appointments would look like missing notes.
 
-The practical distinction is:
+### Patient Status
 
-- Future appointment: no transcript yet.
-- Completed/transcribed session: has `transcript`.
-- AI-generated note: has `clinical_note`.
-- Confirmed record: `approved = true`.
+The first version had only `is_active: bool`. That was too narrow for a realistic clinical workspace because not every non-active patient is discharged.
 
-This avoided adding a separate appointment table too early. The tradeoff is that UI counts must be careful. For example, “pending notes” should count only sessions that have a transcript and no clinical note, not future appointments.
+We added a string `status` field with:
 
-### Session Approval
+- `Active`
+- `Discharged`
+- `On hold`
 
-When a clinician confirms a note:
+`is_active` is still kept for backward compatibility and quick filtering, but `status` is the more meaningful product field. This is a deliberate transitional design: it avoids breaking existing UI/API paths while allowing richer state.
 
-1. The edited final note is saved.
-2. The session is marked approved.
+### Session Approval and Training Data
+
+The approval endpoint does more than toggle a boolean.
+
+When confirming a session:
+
+1. The final edited clinical note is written to the session.
+2. `approved` is set to true.
 3. A `TrainingPair` is created if a transcript exists.
-4. Patient history regeneration is queued in the background.
+4. Patient history regeneration is scheduled.
 
-This keeps training data tied to clinician-approved output rather than raw AI drafts.
+This is an implementation detail with product significance. We only want clinician-approved notes to become training examples. Raw model output is not a good LoRA target because it may include formatting mistakes, missing context, or clinical wording the user would not actually write.
 
-### Schema Migration Strategy
+### Migrations
 
-For local development, lightweight SQLite migrations are handled in `ensure_schema_columns()`. This is intentionally simple and avoids bringing in Alembic during the MVP phase.
+Current migrations are lightweight and local:
 
-This is acceptable for a local prototype, but a production version should use explicit migrations.
+```text
+create_all()
+ensure_schema_columns()
+```
+
+This approach is intentionally simple for an MVP. It works well when the database is local, resettable, and controlled by one developer. It is not enough for production-grade schema evolution.
+
+The expected next step is Alembic or another explicit migration tool once the data model stabilizes.
 
 ## AI Layer
-
 ### Service Boundary
 
 The AI layer lives in `ai/` and exposes a FastAPI service under `/ai/v1`.
-
-The backend calls the AI service through `backend/ai_client.py`.
 
 The service boundary is useful because:
 
 - Backend business logic stays separate from model/runtime concerns.
 - Ollama, whisper.cpp, vector indexing, and model profiles can evolve independently.
 - Docker can allocate model-specific volumes and GPU resources to the AI side.
+
+The AI service is built around provider interfaces rather than direct calls scattered through the codebase. For example, LLM generation, embeddings, speech-to-text, and vector storage are all accessed behind small provider classes. This makes it possible to replace Ollama, whisper.cpp, or the vector store without rewriting product endpoints.
 
 ### Model Stack
 
@@ -126,7 +140,38 @@ Current stack:
 - LLM fallback: `phi3:mini`
 - Embeddings: `nomic-embed-text`
 - Runtime: Ollama
-- Vector index: SQLite-backed vector chunks
+
+The model stack is optimized for local execution on consumer hardware rather than maximum benchmark quality. The constraint is not only VRAM, but also operational simplicity: the models need to be easy to pull, run, swap, and benchmark in Docker.
+
+### Why Ollama
+
+Ollama was chosen as the local LLM runtime because it gives us a stable HTTP interface over open-weight models. The app does not need to manage model loading, quantization files, GPU allocation, or prompt invocation directly.
+
+The important implementation benefit is that Ollama returns generation timing metadata:
+
+- `eval_count`
+- `eval_duration`
+- `prompt_eval_count`
+- `prompt_eval_duration`
+- `total_duration`
+
+That made it possible to measure token/sec directly and compare model profiles with the same prompt.
+
+### Why qwen2.5:3b-instruct
+
+`qwen2.5:3b-instruct` is the default because benchmark results on the target setup were strong:
+
+- around 220 generated tokens/sec on realistic prompts;
+- more stable throughput than `phi3:mini`;
+- suitable instruction-following behavior for structured clinical notes.
+
+`phi3:mini` remains useful as a fallback profile, but the measurements do not support making it the default on this machine.
+
+### Why whisper.cpp
+
+`whisper.cpp` was selected for transcription because it is local, mature, scriptable, and easy to run in Docker. It also produces JSON output with segments, which lets us keep timestamps and metadata.
+
+The provider wraps whisper.cpp output into a normalized `Transcript` object. This isolates the rest of the stack from whisper.cpp-specific JSON details and leaves room to swap in another STT provider later.
 
 ### Transcription
 
@@ -153,6 +198,22 @@ The prompt asks the model to:
 
 The backend saves the structured note text into the session record.
 
+### Structured Output Strategy
+
+The system asks the LLM for JSON matching a Pydantic schema instead of free-form prose only.
+
+The reason is reliability. The frontend and backend need predictable fields for:
+
+- themes;
+- symptoms;
+- structured clinical note;
+- next-session recap;
+- uncertainties.
+
+Free-form text is easier to generate, but harder to validate and harder to build product features on top of. Schema-constrained JSON lets the backend reject malformed output early and keeps the UI stable.
+
+The tradeoff is that JSON mode can sometimes reduce model fluency or fail if the model emits invalid JSON. That is why model choice and prompt design matter.
+
 ### Semantic Search and RAG
 
 The RAG pipeline is split into separate steps:
@@ -165,6 +226,21 @@ The RAG pipeline is split into separate steps:
 6. Optionally ask the LLM to answer using retrieved chunks.
 
 This split made benchmarking easier because embedding cost and vector-search cost can be measured independently.
+
+### Chunking Strategy
+
+The current chunking strategy is character-based with overlap.
+
+This is not the most semantically advanced approach, but it is predictable and fast. For therapy notes and transcripts, overlap is important because clinically relevant context often spans adjacent sentences or speaker turns.
+
+The current approach favors:
+
+- deterministic chunk counts;
+- easy debugging;
+- no tokenizer dependency;
+- simple indexing.
+
+The future improvement would be token-aware chunking or section-aware chunking that treats transcript, clinical summary, risk notes, and plan as separate semantic sections.
 
 ### Vector Store
 
@@ -182,6 +258,20 @@ Benchmark results showed this clearly:
 
 This is acceptable for small patient-level indexes, but not ideal for larger historical corpora. A future version should consider `sqlite-vec`, FAISS, LanceDB, or HNSW-based search.
 
+## Deployment and Runtime Design
+
+Docker Compose separates runtime concerns:
+
+- frontend container for Next.js;
+- backend container for clinical API and SQLite database volume;
+- ai-service container for FastAPI model orchestration;
+- ollama container for model serving;
+- optional LoRA trainer container.
+
+The AI service and Ollama have their own volumes for models, audio, and vector indexes. This matters because model files and vector indexes are large runtime artifacts, not source code.
+
+The backend database is also in a volume. This is why resetting the Docker database requires clearing the backend volume or explicitly running the seeder inside the backend container.
+
 ## Design Decisions
 
 ### Local-First Instead of Cloud AI
@@ -194,24 +284,30 @@ The AI service generates suggestions. The backend stores clinical records.
 
 This distinction matters because AI output should not become authoritative until the clinician confirms it.
 
-### Deterministic Demo Data
+### Separate Backend and AI Service
 
-The seed dataset is deterministic instead of random. This makes demos, screenshots, regression checks, and benchmark comparisons easier.
+Keeping backend and AI service separate adds Docker complexity, but it prevents the product API from being tightly coupled to the model runtime.
 
-### Keep MVP Storage Simple
+The alternative would be a single FastAPI process that owns both database and model execution. That would be simpler initially, but harder to operate once model loading, GPU memory, long-running transcription, and training jobs enter the picture.
 
-SQLite was chosen for:
+### JSON Contracts Between Services
 
-- Easy local setup.
-- Easy Docker volume persistence.
-- Easy reset during development.
-- Low operational burden.
+The backend talks to the AI service over JSON HTTP endpoints rather than importing AI modules directly.
 
-The tradeoff is limited migration and vector-search sophistication.
+This gives us:
 
-### Separate AI Model Profiles
+- a stable service boundary;
+- easier Docker deployment;
+- language/runtime flexibility later;
+- clear failure handling when AI service is unavailable.
 
-The AI service uses model profiles such as `qwen` and `phi`. This makes it easy to switch models without changing backend or frontend flows.
+The cost is some duplicated schemas and explicit client code in `backend/ai_client.py`.
+
+### Clinician-in-the-Loop by Default
+
+The system intentionally avoids fully automatic clinical record creation. AI drafts are useful, but confirmation is the boundary where generated output becomes part of the record.
+
+This decision influences the data model, UI state, training workflow, and patient history generation.
 
 ## What We Tried
 
@@ -264,46 +360,25 @@ Ollama reported very high prompt token/sec after warm-up. The main user-visible 
 
 For UI latency, the important number is generated tokens/sec and end-to-end endpoint time.
 
-### Cold Starts Need Separate Reporting
-
-The first query or first generation after model load can be much slower. For product UX, cold-start and warm-path metrics should be reported separately.
-
-### Future Appointments Need Different UI Semantics
-
-Using `TherapySession` for both appointments and completed sessions works, but only if the UI derives state from content:
-
-- no transcript means scheduled/not started;
-- transcript but no clinical note means note pending;
-- clinical note but not approved means generated draft;
-- approved means confirmed record.
-
 ### Current Vector Search Is Transparent but Not Scalable
 
 SQLite + JSON vectors + Python cosine similarity is excellent for understanding and debugging. It is not the final search architecture for large datasets.
 
 The next likely improvement is an indexed vector backend.
 
+### Service Boundaries Help Benchmarking
+
+Because generation, embedding, vector search, and transcription are separate service functions, we could benchmark them independently.
+
+This made the performance story clearer:
+
+- LLM generation is fast enough for interactive note drafting.
+- Semantic search end-to-end is fast after warm-up.
+- Brute-force vector search is the scaling bottleneck.
+- Whisper performance still needs measurement on representative audio files.
+
 ### Approval Is the Right Boundary for Training Data
 
 Raw AI drafts are not good training targets. Clinician-confirmed notes are better because they encode the user's preferred clinical style and corrections.
 
 That is why `TrainingPair` is created at confirmation time.
-
-## Current Limitations
-
-- No production migration system yet.
-- Scheduled appointments and clinical sessions share one table.
-- Vector search is brute-force.
-- Training workflow is still experimental.
-- `react-markdown` must be installed in `node_modules` for frontend typecheck/build to pass.
-- No full automated end-to-end test suite yet.
-
-## Near-Term Improvements
-
-- Add explicit session lifecycle status instead of deriving state from nullable fields.
-- Add Alembic or another migration tool.
-- Replace brute-force vector search with an indexed vector store.
-- Add benchmark output plots for LLM, STT, semantic search, and vector search.
-- Add endpoint-level performance logging around note generation and RAG.
-- Add tests for approval flow, training-pair creation, and pending-note counts.
-
