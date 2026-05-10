@@ -42,3 +42,12 @@ class Patient(SQLModel, table=True):
     
     # One-to-many relationship with TherapySession
     sessions: List[TherapySession] = Relationship(back_populates="patient")
+
+class TrainingPair(SQLModel, table=True):
+    """
+    Stores pairs of transcript and final clinical note for LoRA fine-tuning.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_id: int
+    transcript: str
+    final_clinical_note: str

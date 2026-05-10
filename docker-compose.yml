@@ -26,6 +26,7 @@ services:
     volumes:
       - backend-data:/data
       - session-audio:/data/audio
+      - lora-trigger:/trigger
     expose:
       - "8000"
     depends_on:
@@ -62,6 +63,7 @@ services:
       - whisper-models:/models/whisper
       - session-audio:/data/audio
       - vector-index:/data
+      - lora-models:/models/lora
     expose:
       - "8010"
     depends_on:
@@ -83,8 +85,28 @@ services:
     image: ollama/ollama:latest
     volumes:
       - ollama-data:/root/.ollama
+      - lora-models:/models/lora
     expose:
       - "11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  lora-trainer:
+    image: unsloth/unsloth:latest
+    container_name: lora-trainer
+    user: "root"
+    environment:
+      - BACKEND_URL=http://backend:8000
+    volumes:
+      - ./ai/scripts:/scripts
+      - lora-models:/models/lora
+      - lora-trigger:/trigger
+    entrypoint: ["sh", "-c", "while true; do if [ -f /trigger/start ]; then rm /trigger/start; python /scripts/train_lora_unsloth.py; fi; sleep 5; done"]
     deploy:
       resources:
         reservations:
@@ -99,3 +121,5 @@ volumes:
   whisper-models:
   session-audio:
   vector-index:
+  lora-models:
+  lora-trigger:

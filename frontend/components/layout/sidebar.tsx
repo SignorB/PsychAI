@@ -10,6 +10,7 @@ import {
   Settings,
   SearchCheck,
   ClipboardCheck,
+  BrainCircuit,
   ChevronLeft,
   ChevronRight,
   type LucideIcon,
@@ -31,6 +32,7 @@ const nav: NavItem[] = [
   { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/search", label: "Advanced search", icon: SearchCheck },
   { href: "/pending", label: "Sessions to close", icon: ClipboardCheck },
+  { href: "/training", label: "Model Training", icon: BrainCircuit },
 ];
 
 export function Sidebar({ pendingCount }: { pendingCount?: number }) {

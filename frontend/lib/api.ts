@@ -235,14 +235,40 @@ export async function semanticSearch(payload: {
   return res.json();
 }
 
-export async function approveSession(patientId: string, sessionId: string) {
+export async function approveSession(patientId: string, sessionId: string, finalClinicalNote: string) {
   const API_URL = getApiUrl();
   const res = await fetch(`${API_URL}/patients/${patientId}/sessions/${sessionId}/approve`, {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ final_clinical_note: finalClinicalNote }),
   });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Failed to approve session: ${text}`);
+  }
+  return res.json();
+}
+
+export async function startTraining() {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/training/start`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to start training: ${text}`);
+  }
+  return res.json();
+}
+
+export async function getTrainingStatus() {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/training/status`, { cache: 'no-store' });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to get training status: ${text}`);
   }
   return res.json();
 }
