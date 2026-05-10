@@ -1,13 +1,16 @@
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 import os
 from contextlib import asynccontextmanager
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from pathlib import Path
 import shutil
 import subprocess
+import io
+import json
 from uuid import uuid4
 
 
@@ -32,6 +35,7 @@ class SessionCreateRequest(BaseModel):
 
 class SessionNoteRequest(BaseModel):
     transcript: str | None = None
+    manual_notes: list[str] = Field(default_factory=list)
     model_profile: str = "qwen"
 
 
@@ -45,7 +49,7 @@ class PatientQuestionRequest(BaseModel):
     top_k: int = 5
 
 class ApproveSessionRequest(BaseModel):
-    final_clinical_note: str
+    final_clinical_note: str | None = None
 
 
 class SemanticSearchRequest(BaseModel):
@@ -213,45 +217,39 @@ def upload_session_notes(patient_id: int, session_id: int, request: SessionNoteR
 
 
 @app.post("/patients/{patient_id}/sessions/{session_id}/approve")
-
-def approve_session(patient_id: int, session_id: int, request: ApproveSessionRequest, session: Session = Depends(get_session)):
-    therapy_session = session.get(TherapySession, session_id)
-    if not therapy_session or therapy_session.patient_id != patient_id:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    therapy_session.approved = True
-    therapy_session.clinical_note = request.final_clinical_note
-
 def approve_session(
     patient_id: int,
     session_id: int,
+    request: ApproveSessionRequest,
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
     therapy_session = session.get(TherapySession, session_id)
     if not therapy_session or therapy_session.patient_id != patient_id:
         raise HTTPException(status_code=404, detail="Session not found")
-    therapy_session.approved = not therapy_session.approved
+
+    if therapy_session.approved:
+        therapy_session.approved = False
+    else:
+        final_note = request.final_clinical_note or therapy_session.clinical_note
+        if not final_note:
+            raise HTTPException(status_code=400, detail="Final clinical note is required")
+        therapy_session.approved = True
+        therapy_session.clinical_note = final_note
+
+        if therapy_session.transcript:
+            training_pair = TrainingPair(
+                session_id=session_id,
+                transcript=therapy_session.transcript,
+                final_clinical_note=final_note,
+            )
+            session.add(training_pair)
 
     session.add(therapy_session)
-    
-    # Save training pair for LoRA fine-tuning
-    if therapy_session.transcript and request.final_clinical_note:
-        training_pair = TrainingPair(
-            session_id=session_id,
-            transcript=therapy_session.transcript,
-            final_clinical_note=request.final_clinical_note
-        )
-        session.add(training_pair)
-        
     session.commit()
     session.refresh(therapy_session)
     background_tasks.add_task(_regenerate_patient_history_report, patient_id)
     return therapy_session
-
-from fastapi.responses import StreamingResponse
-import io
-import json
 
 @app.get("/training/dataset.jsonl")
 def get_training_dataset(session: Session = Depends(get_session)):

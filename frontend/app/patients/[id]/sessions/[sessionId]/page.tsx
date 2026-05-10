@@ -115,14 +115,6 @@ export default function SessionDetailPage() {
     };
   }, [audioUrl]);
 
-  useEffect(() => {
-    if (generated?.structured_note) {
-      setEditedNoteText(generated.structured_note);
-    } else if (session?.clinical_note) {
-      setEditedNoteText(session.clinical_note);
-    }
-  }, [generated?.structured_note, session?.clinical_note]);
-
   const dateLabel = useMemo(() => {
     if (!session?.date) return "";
     return new Date(session.date).toLocaleDateString(undefined, {
@@ -186,7 +178,7 @@ export default function SessionDetailPage() {
     setIsApproving(true);
     setError("");
     try {
-      const updatedSession = await approveSession(params.id, params.sessionId, editedNoteText);
+      const updatedSession = await approveSession(params.id, params.sessionId, editableNote);
       setSession(updatedSession);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to approve session");
@@ -366,24 +358,37 @@ export default function SessionDetailPage() {
 
       <div className="flex-1 min-h-0">
         <div className="grid lg:grid-cols-2 gap-6 h-full">
-        {/* Transcription card */}
-        <Card className="flex flex-col overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Mic className="h-4 w-4 text-[#848484]" />
-              Voice transcription
-            </CardTitle>
-            <CardDescription>
-              Record or upload audio, then transcribe it with local Whisper.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2">
-              {!isRecording ? (
-                <Button variant="outline" onClick={startRecording} disabled={isTranscribing || session.approved}>
-                  <Mic className="h-4 w-4" /> Record
+          {/* Transcription card */}
+          <Card className="flex flex-col overflow-hidden">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mic className="h-4 w-4 text-[#848484]" />
+                Voice transcription
+              </CardTitle>
+              <CardDescription>
+                Record or upload audio, then transcribe it with local Whisper.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-y-auto flex flex-col gap-4">
+              <div className="flex flex-wrap items-center gap-2">
+                {!isRecording ? (
+                  <Button variant="outline" onClick={startRecording} disabled={isTranscribing || session.approved}>
+                    <Mic className="h-4 w-4" /> Record
+                  </Button>
+                ) : (
+                  <Button variant="destructive" onClick={stopRecording} disabled={session.approved}>
+                    <Square className="h-4 w-4" /> Stop
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={handleTranscribeRecording}
+                  disabled={!audioBlob || isRecording || isTranscribing || session.approved}
+                >
+                  {isTranscribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {isTranscribing ? "Transcribing..." : "Transcribe"}
                 </Button>
-                <label className="inline-flex items-center justify-center gap-2 h-9 rounded-md border border-clinical-border bg-white px-3 text-sm font-medium text-clinical-ink hover:bg-clinical-soft cursor-pointer">
+                <label className={cn("inline-flex items-center justify-center gap-2 h-9 rounded-md border border-clinical-border bg-white px-3 text-sm font-medium text-clinical-ink hover:bg-clinical-soft cursor-pointer", (isTranscribing || isRecording || session.approved) && "opacity-50 pointer-events-none")}>
                   <Upload className="h-4 w-4" />
                   Upload audio
                   <input
@@ -391,7 +396,7 @@ export default function SessionDetailPage() {
                     accept="audio/*"
                     className="sr-only"
                     onChange={handleAudioFile}
-                    disabled={isTranscribing || isRecording}
+                    disabled={isTranscribing || isRecording || session.approved}
                   />
                 </label>
                 {isRecording && (
@@ -409,96 +414,16 @@ export default function SessionDetailPage() {
               <textarea
                 value={transcript}
                 onChange={(event) => setTranscript(event.target.value)}
-                className="w-full min-h-[220px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y"
+                disabled={session.approved}
+                className="w-full flex-1 rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-none disabled:opacity-50 disabled:bg-clinical-soft/50"
                 placeholder="Paste or type the session transcript..."
               />
-              <p className="mt-2 text-xs text-[#848484]">{transcript.length} characters</p>
+              <p className="text-xs text-[#848484]">{transcript.length} characters</p>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Manual note</CardTitle>
-              <CardDescription>
-                Optional clinician note merged into the AI draft request.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <textarea
-                value={manualNote}
-                onChange={(event) => setManualNote(event.target.value)}
-                className="w-full min-h-[120px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y"
-                placeholder="Add clinical context before generating..."
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-[#848484]" />
-                AI-drafted clinical note
-              </CardTitle>
-              <CardDescription>
-                Generated by backend via local AI service.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {editedNoteText ? (
-                <textarea
-                  value={editedNoteText}
-                  onChange={(e) => setEditedNoteText(e.target.value)}
-                  className="w-full min-h-[300px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y"
-                />
-              ) : (
-                <Button variant="destructive" onClick={stopRecording} disabled={session.approved}>
-                  <Square className="h-4 w-4" /> Stop
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                onClick={handleTranscribeRecording}
-                disabled={!audioBlob || isRecording || isTranscribing || session.approved}
-              >
-                {isTranscribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {isTranscribing ? "Transcribing..." : "Transcribe"}
-              </Button>
-              <label className={cn("inline-flex items-center justify-center gap-2 h-9 rounded-md border border-clinical-border bg-white px-3 text-sm font-medium text-clinical-ink hover:bg-clinical-soft cursor-pointer", (isTranscribing || isRecording || session.approved) && "opacity-50 pointer-events-none")}>
-                <Upload className="h-4 w-4" />
-                Upload audio
-                <input
-                  type="file"
-                  accept="audio/*"
-                  className="sr-only"
-                  onChange={handleAudioFile}
-                  disabled={isTranscribing || isRecording || session.approved}
-                />
-              </label>
-              {isRecording && (
-                <span className="inline-flex items-center gap-2 text-xs text-red-700">
-                  <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
-                  Recording
-                </span>
-              )}
-            </div>
-
-            {audioUrl && (
-              <audio controls src={audioUrl} className="w-full" />
-            )}
-
-            <textarea
-              value={transcript}
-              onChange={(event) => setTranscript(event.target.value)}
-              disabled={session.approved}
-              className="w-full flex-1 rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-none disabled:opacity-50 disabled:bg-clinical-soft/50"
-              placeholder="Paste or type the session transcript..."
-            />
-            <p className="text-xs text-[#848484]">{transcript.length} characters</p>
-          </CardContent>
-        </Card>
-
-        {/* AI Clinical Note — editable */}
-        <Card className="flex flex-col overflow-hidden">
+          {/* AI Clinical Note — editable */}
+          <Card className="flex flex-col overflow-hidden">
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>

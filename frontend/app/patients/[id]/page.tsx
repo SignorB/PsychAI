@@ -167,7 +167,7 @@ export default async function PatientCard({ params }: { params: { id: string } }
                   {pIntakeNotes}
                 </p>
 
-                <div className="grid gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium">
                       Diagnosis
@@ -180,18 +180,18 @@ export default async function PatientCard({ params }: { params: { id: string } }
                       )) : <span className="text-sm text-[#848484]">None specified</span>}
                     </div>
                   </div>
-                </div>
 
-                <div>
-                  <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium">
-                    Working themes
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {pThemes.length > 0 ? pThemes.map((t: string) => (
-                      <Badge key={t} variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 font-medium">
-                        {t}
-                      </Badge>
-                    )) : <span className="text-sm text-[#848484]">No themes identified</span>}
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium">
+                      Working themes
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {pThemes.length > 0 ? pThemes.map((t: string) => (
+                        <Badge key={t} variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 font-medium">
+                          {t}
+                        </Badge>
+                      )) : <span className="text-sm text-[#848484]">No themes identified</span>}
+                    </div>
                   </div>
                 </div>
               </CardContent>
