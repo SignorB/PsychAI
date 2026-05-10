@@ -249,6 +249,35 @@ def get_training_dataset(session: Session = Depends(get_session)):
     )
 
 
+@app.post("/training/start")
+def start_training():
+    trigger_dir = Path("/trigger")
+    trigger_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Reset progress
+    progress_file = trigger_dir / "progress.json"
+    with progress_file.open("w") as f:
+        json.dump({"status": "starting", "progress": 0}, f)
+        
+    # Create start trigger
+    start_file = trigger_dir / "start"
+    start_file.touch()
+    
+    return {"status": "triggered"}
+
+
+@app.get("/training/status")
+def get_training_status():
+    progress_file = Path("/trigger/progress.json")
+    if progress_file.exists():
+        try:
+            with progress_file.open("r") as f:
+                return json.load(f)
+        except Exception:
+            return {"status": "unknown"}
+    return {"status": "idle"}
+
+
 @app.post("/patients/{patient_id}/sessions/{session_id}/generate-note")
 def generate_session_note(
     patient_id: int,

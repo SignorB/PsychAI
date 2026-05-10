@@ -231,3 +231,25 @@ export async function approveSession(patientId: string, sessionId: string, final
   }
   return res.json();
 }
+
+export async function startTraining() {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/training/start`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to start training: ${text}`);
+  }
+  return res.json();
+}
+
+export async function getTrainingStatus() {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/training/status`, { cache: 'no-store' });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to get training status: ${text}`);
+  }
+  return res.json();
+}

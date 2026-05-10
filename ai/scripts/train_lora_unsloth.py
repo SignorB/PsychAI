@@ -5,7 +5,7 @@ from datasets import Dataset
 from unsloth import FastLanguageModel
 import torch
 from trl import SFTTrainer
-from transformers import TrainingArguments
+from transformers import TrainingArguments, TrainerCallback
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000")
 MODEL_NAME = "unsloth/llama-3-8b-Instruct-bnb-4bit"
@@ -35,6 +35,21 @@ def format_prompt(examples):
         text = f"<|start_header_id|>system<|end_header_id|>\n{inst}<|eot_id|>\n<|start_header_id|>user<|end_header_id|>\n{inp}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>\n{out}<|eot_id|>"
         texts.append(text)
     return {"text": texts}
+
+class ProgressCallback(TrainerCallback):
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if state.max_steps > 0:
+            progress = state.global_step / state.max_steps
+            try:
+                with open("/trigger/progress.json", "w") as f:
+                    json.dump({
+                        "status": "training",
+                        "progress": progress * 100,
+                        "step": state.global_step,
+                        "max_steps": state.max_steps
+                    }, f)
+            except Exception as e:
+                print(f"Failed to write progress: {e}")
 
 def main():
     dataset = fetch_dataset()
@@ -69,6 +84,7 @@ def main():
         dataset_text_field="text",
         max_seq_length=MAX_SEQ_LENGTH,
         dataset_num_proc=2,
+        callbacks=[ProgressCallback],
         args=TrainingArguments(
             per_device_train_batch_size=2,
             gradient_accumulation_steps=4,
@@ -92,6 +108,12 @@ def main():
     print(f"Saving adapter to {OUTPUT_DIR}...")
     model.save_pretrained(OUTPUT_DIR)
     tokenizer.save_pretrained(OUTPUT_DIR)
+    
+    try:
+        with open("/trigger/progress.json", "w") as f:
+            json.dump({"status": "completed", "progress": 100}, f)
+    except Exception:
+        pass
     
     print("Training complete! Adapter saved.")
 

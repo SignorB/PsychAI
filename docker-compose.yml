@@ -26,6 +26,7 @@ services:
     volumes:
       - backend-data:/data
       - session-audio:/data/audio
+      - lora-trigger:/trigger
     expose:
       - "8000"
     depends_on:
@@ -98,12 +99,14 @@ services:
   lora-trainer:
     image: unsloth/unsloth:latest
     container_name: lora-trainer
+    user: "root"
     environment:
       - BACKEND_URL=http://backend:8000
     volumes:
       - ./ai/scripts:/scripts
       - lora-models:/models/lora
-    command: ["tail", "-f", "/dev/null"] # Sleep until triggered
+      - lora-trigger:/trigger
+    entrypoint: ["sh", "-c", "while true; do if [ -f /trigger/start ]; then rm /trigger/start; python /scripts/train_lora_unsloth.py; fi; sleep 5; done"]
     deploy:
       resources:
         reservations:
@@ -119,3 +122,4 @@ volumes:
   session-audio:
   vector-index:
   lora-models:
+  lora-trigger:
