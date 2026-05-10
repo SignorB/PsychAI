@@ -41,7 +41,6 @@ def draft_session_note(
     patient_id: int,
     session_id: int,
     transcript_text: str,
-    manual_notes: list[str] | None = None,
     model_profile: str = "qwen",
 ) -> dict[str, Any]:
     return _post(
@@ -55,7 +54,6 @@ def draft_session_note(
                 "language": "it",
                 "segments": [],
             },
-            "manual_notes": manual_notes or [],
             "retrieved_context": [],
         },
         timeout=240,

@@ -32,6 +32,7 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
     address: "",
     email: "",
     phone: "",
+    status: "Active" as PatientStatus,
     is_active: true,
     referral_letter: "",
     intake_notes: ""
@@ -50,7 +51,8 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
         address: newPatient.address,
         email: newPatient.email,
         phone: newPatient.phone,
-        is_active: newPatient.is_active,
+        status: newPatient.status,
+        is_active: newPatient.status === "Active",
         referral_letter: newPatient.referral_letter,
         intake_notes: newPatient.intake_notes
       });
@@ -71,7 +73,7 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
       const name = p.name || `Patient ${p.patient_id || p.id}`;
       const concern = p.primaryConcern || p.condition || "";
       const diagnosis = p.diagnosis || [];
-      const status: PatientStatus = p.is_active === false ? "Discharged" : "Active";
+      const status: PatientStatus = p.status || (p.is_active === false ? "Discharged" : "Active");
 
       const matchesQ =
         !q ||
@@ -106,11 +108,17 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
               <label className="text-sm font-medium text-clinical-ink">Age *</label>
               <input required type="number" value={newPatient.age} onChange={e => setNewPatient({...newPatient, age: e.target.value})} className="w-full h-10 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484]" placeholder="e.g. 35" />
             </div>
-            <div className="space-y-2 flex flex-col justify-end pb-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={newPatient.is_active} onChange={e => setNewPatient({...newPatient, is_active: e.target.checked})} className="w-4 h-4 rounded border-clinical-border text-clinical-brand focus:ring-clinical-brand" />
-                <span className="text-sm font-medium text-clinical-ink">Active Patient</span>
-              </label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-clinical-ink">Status</label>
+              <select
+                value={newPatient.status}
+                onChange={e => setNewPatient({...newPatient, status: e.target.value as PatientStatus, is_active: e.target.value === "Active"})}
+                className="w-full h-10 px-3 rounded-md bg-white border border-clinical-border text-sm text-clinical-ink focus:outline-none focus:border-[#848484]"
+              >
+                <option>Active</option>
+                <option>On hold</option>
+                <option>Discharged</option>
+              </select>
             </div>
           </div>
 
@@ -251,7 +259,7 @@ export default function PatientsClient({ initialPatients }: { initialPatients: a
                   const id = p.id || p.patient_id;
                   const name = p.name || `Patient ${id}`;
                   const initials = p.initials || name.substring(0, 2).toUpperCase() || "PT";
-                  const status: PatientStatus = p.is_active === false ? "Discharged" : "Active";
+                  const status: PatientStatus = p.status || (p.is_active === false ? "Discharged" : "Active");
                   const totalSessions = p.total_sessions ?? p.sessions?.length ?? 0;
                   const riskFlags = p.riskFlags || [];
                   const age = p.age || "N/A";

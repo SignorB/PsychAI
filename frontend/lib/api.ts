@@ -55,6 +55,7 @@ export async function createPatient(payload: {
   address?: string;
   email?: string;
   phone?: string;
+  status?: "Active" | "On hold" | "Discharged";
   is_active?: boolean;
   referral_letter?: string;
   intake_notes?: string;
@@ -93,7 +94,6 @@ export async function generateSessionNote(
   sessionId: string,
   payload: {
     transcript?: string;
-    manual_notes?: string[];
     model_profile?: string;
   }
 ) {
@@ -105,13 +105,32 @@ export async function generateSessionNote(
     },
     body: JSON.stringify({
       model_profile: "qwen",
-      manual_notes: [],
       ...payload,
     }),
   });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Failed to generate note: ${text}`);
+  }
+  return res.json();
+}
+
+export async function updateSessionNote(
+  patientId: string,
+  sessionId: string,
+  clinicalNote: string,
+) {
+  const API_URL = getApiUrl();
+  const res = await fetch(`${API_URL}/patients/${patientId}/sessions/${sessionId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ clinical_note: clinicalNote }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to save note: ${text}`);
   }
   return res.json();
 }

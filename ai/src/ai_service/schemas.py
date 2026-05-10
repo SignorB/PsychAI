@@ -83,7 +83,6 @@ class SessionNoteDraftRequest(BaseModel):
     patient_id: str
     session_id: str | None = None
     transcript: Transcript
-    manual_notes: list[str] = Field(default_factory=list)
     retrieved_context: list[RetrievedChunk] = Field(default_factory=list)
 
 

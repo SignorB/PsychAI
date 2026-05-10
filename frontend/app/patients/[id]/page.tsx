@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
@@ -76,8 +77,9 @@ export default async function PatientCard({ params }: { params: { id: string } }
   const pTotalSessions = patientSessions.length;
   const pIntakeNotes =
     pData.intake_notes || pData.intakeNotes || "No intake notes available.";
+  const pHistoryReport = pData.patient_history_report || "";
+  const pHistoryReportGeneratedAt = pData.patient_history_report_generated_at || "";
   const pDiagnosis = pData.diagnosis || (pData.condition ? [pData.condition] : []);
-  const pModality = pData.modality || "Not specified";
   const pThemes = pData.themes || [];
   const pOpenItems = pData.openItems || [];
   const pUnresolved = pData.unresolved || [];
@@ -136,12 +138,6 @@ export default async function PatientCard({ params }: { params: { id: string } }
           </div>
         </div>
         <div className="flex gap-2">
-          <Link href={`/patients/${pId}/referral`}>
-            <Button variant="outline">
-              <FileText className="h-4 w-4 mr-2" />
-              Referral letter
-            </Button>
-          </Link>
           <StartSessionButton patientId={pId} />
         </div>
       </div>
@@ -171,24 +167,18 @@ export default async function PatientCard({ params }: { params: { id: string } }
                   {pIntakeNotes}
                 </p>
 
-                <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid gap-4">
                   <div>
                     <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium">
                       Diagnosis
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {pDiagnosis.length > 0 ? pDiagnosis.map((d: string) => (
-                        <Badge key={d} variant="default">
+                        <Badge key={d} variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 font-medium">
                           {d}
                         </Badge>
                       )) : <span className="text-sm text-[#848484]">None specified</span>}
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium">
-                      Modality
-                    </p>
-                    <p className="mt-2 text-sm text-clinical-ink">{pModality}</p>
                   </div>
                 </div>
 
@@ -198,7 +188,7 @@ export default async function PatientCard({ params }: { params: { id: string } }
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {pThemes.length > 0 ? pThemes.map((t: string) => (
-                      <Badge key={t} variant="info">
+                      <Badge key={t} variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 font-medium">
                         {t}
                       </Badge>
                     )) : <span className="text-sm text-[#848484]">No themes identified</span>}
@@ -221,17 +211,22 @@ export default async function PatientCard({ params }: { params: { id: string } }
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-sm leading-relaxed text-clinical-ink">
-                  <p className="mb-4">
-                    The patient presented with ongoing symptoms of social anxiety, which have been present since early adolescence but have exacerbated recently due to increased academic pressures and a transition to a new university environment.
+                {pHistoryReport ? (
+                  <div className="space-y-3">
+                    <div className="prose prose-sm prose-clinical max-w-none prose-headings:text-clinical-ink prose-headings:font-bold prose-p:leading-relaxed prose-p:text-clinical-ink prose-li:text-clinical-ink">
+                      <ReactMarkdown>{pHistoryReport}</ReactMarkdown>
+                    </div>
+                    {pHistoryReportGeneratedAt && (
+                      <p className="text-[11px] text-[#848484]">
+                        Updated {new Date(pHistoryReportGeneratedAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm leading-relaxed text-[#848484]">
+                    The longitudinal patient history report will be generated after a session note is confirmed by the clinician.
                   </p>
-                  <p className="mb-4">
-                    Key developmental milestones were met, but the patient reports a history of feeling "on the outside" during middle and high school. No significant medical history. Previous brief trial of CBT 3 years ago was partially successful, but patient discontinued when symptoms temporarily abated.
-                  </p>
-                  <p>
-                    Currently, the primary concern is avoiding tutorials and seminars due to fear of negative evaluation, leading to academic underperformance and feelings of guilt.
-                  </p>
-                </div>
+                )}
               </CardContent>
             </Card>
             </div>

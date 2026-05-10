@@ -130,7 +130,6 @@ def create_app(state: AIServiceState | None = None) -> FastAPI:
             patient_id=request.patient_id,
             session_id=request.session_id,
             transcript=request.transcript,
-            manual_notes=request.manual_notes,
         )
 
     @app.post("/ai/v1/session-notes/validate", response_model=ValidateSessionNoteResponse)

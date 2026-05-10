@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Depends
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 import os
@@ -10,8 +10,10 @@ import shutil
 import subprocess
 from uuid import uuid4
 
-from database import create_db_and_tables, get_session, seed_database
+
+from database import create_db_and_tables, engine, get_session, seed_database
 from models import Patient, TherapySession, TrainingPair
+
 from ai_client import AIServiceClientError, ai_health, answer_from_chunks, ask_patient, draft_session_note, index_patient_source, semantic_search, transcribe_audio
 
 
@@ -30,8 +32,11 @@ class SessionCreateRequest(BaseModel):
 
 class SessionNoteRequest(BaseModel):
     transcript: str | None = None
-    manual_notes: list[str] = []
     model_profile: str = "qwen"
+
+
+class SessionNoteUpdateRequest(BaseModel):
+    clinical_note: str
 
 
 class PatientQuestionRequest(BaseModel):
@@ -51,6 +56,10 @@ class SemanticSearchRequest(BaseModel):
 
 
 class PreSessionRecapRequest(BaseModel):
+    model_profile: str = "qwen"
+
+
+class PatientHistoryReportRequest(BaseModel):
     model_profile: str = "qwen"
 
 
@@ -114,6 +123,7 @@ def get_patients(session: Session = Depends(get_session)):
 @app.post("/patients", response_model=Patient)
 def create_patient(patient: Patient, session: Session = Depends(get_session)):
     """Create a new patient."""
+    patient.is_active = patient.status == "Active"
     session.add(patient)
     session.commit()
     session.refresh(patient)
@@ -177,7 +187,7 @@ def create_session(patient_id: int, request: SessionCreateRequest | None = None,
         date=session_date,
         start_time=start_time,
         end_time=end_time,
-        transcript=patient.intake_notes or "",
+        transcript="",
         patient_id=patient.id
     )
     
@@ -203,6 +213,7 @@ def upload_session_notes(patient_id: int, session_id: int, request: SessionNoteR
 
 
 @app.post("/patients/{patient_id}/sessions/{session_id}/approve")
+
 def approve_session(patient_id: int, session_id: int, request: ApproveSessionRequest, session: Session = Depends(get_session)):
     therapy_session = session.get(TherapySession, session_id)
     if not therapy_session or therapy_session.patient_id != patient_id:
@@ -210,6 +221,18 @@ def approve_session(patient_id: int, session_id: int, request: ApproveSessionReq
     
     therapy_session.approved = True
     therapy_session.clinical_note = request.final_clinical_note
+
+def approve_session(
+    patient_id: int,
+    session_id: int,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    therapy_session = session.get(TherapySession, session_id)
+    if not therapy_session or therapy_session.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    therapy_session.approved = not therapy_session.approved
+
     session.add(therapy_session)
     
     # Save training pair for LoRA fine-tuning
@@ -223,6 +246,7 @@ def approve_session(patient_id: int, session_id: int, request: ApproveSessionReq
         
     session.commit()
     session.refresh(therapy_session)
+    background_tasks.add_task(_regenerate_patient_history_report, patient_id)
     return therapy_session
 
 from fastapi.responses import StreamingResponse
@@ -298,7 +322,6 @@ def generate_session_note(
             patient_id=patient_id,
             session_id=session_id,
             transcript_text=transcript,
-            manual_notes=request.manual_notes,
             model_profile=request.model_profile,
         )
         therapy_session.transcript = transcript
@@ -324,6 +347,24 @@ def generate_session_note(
     return {"session": therapy_session, "ai_note": ai_note, "index": index_result}
 
 
+@app.patch("/patients/{patient_id}/sessions/{session_id}")
+def update_session_note(
+    patient_id: int,
+    session_id: int,
+    request: SessionNoteUpdateRequest,
+    session: Session = Depends(get_session),
+):
+    """Save the clinician-edited clinical note for a session."""
+    therapy_session = session.get(TherapySession, session_id)
+    if not therapy_session or therapy_session.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    therapy_session.clinical_note = request.clinical_note
+    session.add(therapy_session)
+    session.commit()
+    session.refresh(therapy_session)
+    return therapy_session
+
+
 @app.post("/patients/{patient_id}/sessions/{session_id}/pre-session-recap")
 def generate_pre_session_recap(
     patient_id: int,
@@ -344,10 +385,24 @@ def generate_pre_session_recap(
     )
     chunks = _pre_session_recap_chunks(patient=patient, previous_session=previous_session)
     question = (
-        "Prepara un recap pre-seduta per lo psicologo usando solo la scheda paziente "
-        "e l'ultimo incontro forniti. Scrivi in italiano, in modo sintetico e operativo. "
-        "Includi: sintesi del caso, cosa e emerso nell'ultimo incontro, punti da riprendere, "
-        "attenzioni o incertezze. Non inventare informazioni."
+        "Prepare a highly concise, actionable pre-session recap for the therapist, using ONLY the provided patient card and the last session notes. "
+        "Write the report in a professional, direct clinical tone. "
+        "CRITICAL: You MUST use Markdown to structure the report. Use headings (###), bold text (**), and bullet points. "
+        "Please structure the recap EXACTLY with the following specific sections (use these as Markdown headings). "
+        "Do not invent any information not explicitly present in the sources.\n\n"
+        "--- EXAMPLE FORMAT ---\n"
+        "### Case Summary\n"
+        "Brief overview of the patient's core issue and current treatment focus.\n\n"
+        "### Last Session Highlights\n"
+        "- **Topic 1:** Discussed [event].\n"
+        "- **Topic 2:** Patient expressed [feeling].\n\n"
+        "### Points to Revisit\n"
+        "- Check in on [homework/intervention].\n"
+        "- Follow up regarding [specific situation].\n\n"
+        "### Clinical Alerts & Uncertainties\n"
+        "- Monitor [specific risk, e.g., low mood].\n"
+        "- Unclear if [ambiguous point from last session].\n"
+        "--- END EXAMPLE FORMAT ---"
     )
 
     try:
@@ -373,6 +428,36 @@ def generate_pre_session_recap(
             }
             for item in chunks
         ],
+    }
+
+
+@app.post("/patients/{patient_id}/history-report/regenerate")
+def regenerate_patient_history_report(
+    patient_id: int,
+    request: PatientHistoryReportRequest,
+    session: Session = Depends(get_session),
+):
+    patient = session.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    try:
+        report = _build_patient_history_report(
+            patient=patient,
+            model_profile=request.model_profile,
+        )
+        patient.patient_history_report = report
+        patient.patient_history_report_generated_at = datetime.utcnow().isoformat() + "Z"
+        session.add(patient)
+        session.commit()
+        session.refresh(patient)
+    except AIServiceClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {
+        "patient_id": patient_id,
+        "patient_history_report": patient.patient_history_report,
+        "generated_at": patient.patient_history_report_generated_at,
     }
 
 
@@ -579,9 +664,9 @@ def _patient_index_text(patient: Patient) -> str:
     return "\n".join(
         part
         for part in [
-            f"Paziente: {_patient_display_name(patient)}",
-            f"Eta: {patient.age}" if patient.age else "",
-            f"Condizione: {patient.condition}" if patient.condition else "",
+            f"Patient: {_patient_display_name(patient)}",
+            f"Age: {patient.age}" if patient.age else "",
+            f"Condition: {patient.condition}" if patient.condition else "",
             f"Note intake: {patient.intake_notes}" if patient.intake_notes else "",
             f"Referral: {patient.referral_letter}" if patient.referral_letter else "",
         ]
@@ -593,9 +678,9 @@ def _session_index_text(therapy_session: TherapySession) -> str:
     return "\n".join(
         part
         for part in [
-            f"Seduta del {_date_only(therapy_session.date)}",
-            f"Trascrizione:\n{therapy_session.transcript}" if therapy_session.transcript else "",
-            f"Nota clinica:\n{therapy_session.clinical_note}" if therapy_session.clinical_note else "",
+            f"Session of {_date_only(therapy_session.date)}",
+            f"Transcription:\n{therapy_session.transcript}" if therapy_session.transcript else "",
+            f"Clinical note:\n{therapy_session.clinical_note}" if therapy_session.clinical_note else "",
         ]
         if part
     )
@@ -658,6 +743,128 @@ def _pre_session_recap_chunks(
             }
         )
     return chunks
+
+
+def _regenerate_patient_history_report(patient_id: int) -> None:
+    try:
+        with Session(engine) as session:
+            patient = session.get(Patient, patient_id)
+            if not patient:
+                return
+            report = _build_patient_history_report(patient=patient)
+            patient.patient_history_report = report
+            patient.patient_history_report_generated_at = datetime.utcnow().isoformat() + "Z"
+            session.add(patient)
+            session.commit()
+    except Exception as exc:
+        print(f"Failed to regenerate patient history report for patient {patient_id}: {exc}")
+
+
+def _build_patient_history_report(
+    *,
+    patient: Patient,
+    model_profile: str = "qwen",
+) -> str:
+    approved_sessions = sorted(
+        [
+            item
+            for item in patient.sessions
+            if item.approved and (item.clinical_note or item.transcript)
+        ],
+        key=lambda item: item.date,
+    )
+    chunks = _patient_history_report_chunks(patient=patient, sessions=approved_sessions)
+    question = (
+        "Generate a detailed, longitudinal clinical report (Patient History) based on the initial intake and the approved session summaries. "
+        "Write the report in a professional clinical tone. "
+        "CRITICAL: You MUST use Markdown to structure the report. Use headings (###), bold text (**), and bullet points to make it highly readable. "
+        "Please structure the report EXACTLY with the following specific sections (use these as Markdown headings). "
+        "Do not invent diagnoses, events, or risks not present in the sources. "
+        "If information for a section is insufficient, explicitly state it in that section.\n\n"
+        "--- EXAMPLE FORMAT ---\n"
+        "### Initial Clinical Picture\n"
+        "The patient presented with [summary of initial state].\n\n"
+        "### Evolution Over Time\n"
+        "- **Session 1:** Patient reported [event].\n"
+        "- **Session 2:** Improvement noted in [area].\n\n"
+        "### Recurring Themes\n"
+        "- **Theme 1:** [description]\n"
+        "- **Theme 2:** [description]\n\n"
+        "### Symptoms and Functioning\n"
+        "- **Anxiety:** Moderate, triggered by [triggers].\n"
+        "- **Sleep:** Improved.\n\n"
+        "### Interventions or Homework\n"
+        "- Assigned CBT worksheets.\n"
+        "- Practiced mindfulness techniques in session.\n\n"
+        "### Open Points for Treatment\n"
+        "- Explore relationship with parents.\n"
+        "- Continue monitoring sleep patterns.\n"
+        "--- END EXAMPLE FORMAT ---"
+    )
+    answer = answer_from_chunks(
+        patient_id=patient.id,
+        question=question,
+        chunks=chunks,
+        model_profile=model_profile,
+    )
+    return answer.get("answer", "").strip()
+
+
+def _patient_history_report_chunks(
+    *,
+    patient: Patient,
+    sessions: list[TherapySession],
+) -> list[dict]:
+    patient_id = str(patient.id)
+    chunks = [
+        {
+            "chunk": {
+                "chunk_id": f"patient_{patient.id}_intake",
+                "patient_id": patient_id,
+                "source_id": f"patient_{patient.id}",
+                "text": _patient_index_text(patient),
+                "metadata": {
+                    "record_type": "patient",
+                    "source_type": "patient_card",
+                },
+            },
+            "score": 1.0,
+        }
+    ]
+    for index, therapy_session in enumerate(sessions, start=1):
+        chunks.append(
+            {
+                "chunk": {
+                    "chunk_id": f"session_{therapy_session.id}_approved_summary",
+                    "patient_id": patient_id,
+                    "source_id": f"session_{therapy_session.id}",
+                    "text": _approved_session_report_text(
+                        therapy_session=therapy_session,
+                        position=index,
+                    ),
+                    "metadata": {
+                        "record_type": "session",
+                        "source_type": "approved_session_summary",
+                        "session_id": str(therapy_session.id),
+                        "session_date": _date_only(therapy_session.date),
+                    },
+                },
+                "score": 1.0,
+            }
+        )
+    return chunks
+
+
+def _approved_session_report_text(*, therapy_session: TherapySession, position: int) -> str:
+    return "\n".join(
+        part
+        for part in [
+            f"Approved session {position} of {_date_only(therapy_session.date)}",
+            f"Approved clinical note:\n{therapy_session.clinical_note}" if therapy_session.clinical_note else "",
+            f"Transcription:\n{therapy_session.transcript}" if therapy_session.transcript and not therapy_session.clinical_note else "",
+        ]
+        if part
+    )
 
 
 def _date_only(value: str | None) -> str:
