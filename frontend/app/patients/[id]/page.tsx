@@ -79,7 +79,6 @@ export default async function PatientCard({ params }: { params: { id: string } }
   const pHistoryReport = pData.patient_history_report || "";
   const pHistoryReportGeneratedAt = pData.patient_history_report_generated_at || "";
   const pDiagnosis = pData.diagnosis || (pData.condition ? [pData.condition] : []);
-  const pModality = pData.modality || "Not specified";
   const pThemes = pData.themes || [];
   const pOpenItems = pData.openItems || [];
   const pUnresolved = pData.unresolved || [];
@@ -138,12 +137,6 @@ export default async function PatientCard({ params }: { params: { id: string } }
           </div>
         </div>
         <div className="flex gap-2">
-          <Link href={`/patients/${pId}/referral`}>
-            <Button variant="outline">
-              <FileText className="h-4 w-4 mr-2" />
-              Referral letter
-            </Button>
-          </Link>
           <StartSessionButton patientId={pId} />
         </div>
       </div>
@@ -173,7 +166,7 @@ export default async function PatientCard({ params }: { params: { id: string } }
                   {pIntakeNotes}
                 </p>
 
-                <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid gap-4">
                   <div>
                     <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium">
                       Diagnosis
@@ -185,12 +178,6 @@ export default async function PatientCard({ params }: { params: { id: string } }
                         </Badge>
                       )) : <span className="text-sm text-[#848484]">None specified</span>}
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium">
-                      Modality
-                    </p>
-                    <p className="mt-2 text-sm text-clinical-ink">{pModality}</p>
                   </div>
                 </div>
 

@@ -30,8 +30,11 @@ class SessionCreateRequest(BaseModel):
 
 class SessionNoteRequest(BaseModel):
     transcript: str | None = None
-    manual_notes: list[str] = []
     model_profile: str = "qwen"
+
+
+class SessionNoteUpdateRequest(BaseModel):
+    clinical_note: str
 
 
 class PatientQuestionRequest(BaseModel):
@@ -241,7 +244,6 @@ def generate_session_note(
             patient_id=patient_id,
             session_id=session_id,
             transcript_text=transcript,
-            manual_notes=request.manual_notes,
             model_profile=request.model_profile,
         )
         therapy_session.transcript = transcript
@@ -265,6 +267,24 @@ def generate_session_note(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return {"session": therapy_session, "ai_note": ai_note, "index": index_result}
+
+
+@app.patch("/patients/{patient_id}/sessions/{session_id}")
+def update_session_note(
+    patient_id: int,
+    session_id: int,
+    request: SessionNoteUpdateRequest,
+    session: Session = Depends(get_session),
+):
+    """Save the clinician-edited clinical note for a session."""
+    therapy_session = session.get(TherapySession, session_id)
+    if not therapy_session or therapy_session.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    therapy_session.clinical_note = request.clinical_note
+    session.add(therapy_session)
+    session.commit()
+    session.refresh(therapy_session)
+    return therapy_session
 
 
 @app.post("/patients/{patient_id}/sessions/{session_id}/pre-session-recap")

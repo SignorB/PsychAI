@@ -8,12 +8,13 @@ import {
   ChevronRight,
   Loader2,
   Mic,
-  Save,
   Sparkles,
   AlertTriangle,
   Square,
   Upload,
   CheckCircle2,
+  Pencil,
+  Save,
 } from "lucide-react";
 import {
   Card,
@@ -29,8 +30,8 @@ import {
   getPatient,
   getPatientSession,
   generateSessionNote,
+  updateSessionNote,
   transcribeSessionAudio,
-  askPatient,
   approveSession,
 } from "@/lib/api";
 
@@ -67,13 +68,13 @@ export default function SessionDetailPage() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [session, setSession] = useState<TherapySession | null>(null);
   const [transcript, setTranscript] = useState("");
-  const [manualNote, setManualNote] = useState("");
   const [generated, setGenerated] = useState<GeneratedNote | null>(null);
-  const [ragQuestion, setRagQuestion] = useState("Cosa va ripreso nella prossima seduta?");
-  const [ragAnswer, setRagAnswer] = useState<any>(null);
+  // editableNote: the text shown in the editable textarea; starts from generated/saved note
+  const [editableNote, setEditableNote] = useState("");
+  const [noteIsEdited, setNoteIsEdited] = useState(false);
+  const [isSavingNote, setIsSavingNote] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isAsking, setIsAsking] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -95,6 +96,9 @@ export default function SessionDetailPage() {
         setPatient(patientData);
         setSession(sessionData);
         setTranscript(sessionData.transcript || patientData.intake_notes || "");
+        const existingNote = sessionData.clinical_note || "";
+        setEditableNote(existingNote);
+        setNoteIsEdited(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load session");
       } finally {
@@ -127,10 +131,12 @@ export default function SessionDetailPage() {
     try {
       const response = await generateSessionNote(params.id, params.sessionId, {
         transcript,
-        manual_notes: manualNote ? [manualNote] : [],
       });
       setSession(response.session);
       setGenerated(response.ai_note);
+      const newNote = response.ai_note?.structured_note || response.session.clinical_note || "";
+      setEditableNote(newNote);
+      setNoteIsEdited(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate note");
     } finally {
@@ -138,20 +144,36 @@ export default function SessionDetailPage() {
     }
   }
 
-  async function handleAsk() {
-    setIsAsking(true);
+  async function handleSaveNote() {
+    if (!session) return;
+    setIsSavingNote(true);
     setError("");
     try {
-      const response = await askPatient(params.id, ragQuestion);
-      setRagAnswer(response);
+      const updated = await updateSessionNote(params.id, params.sessionId, editableNote);
+      setSession(updated);
+      setNoteIsEdited(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to query patient history");
+      setError(err instanceof Error ? err.message : "Failed to save note");
     } finally {
-      setIsAsking(false);
+      setIsSavingNote(false);
     }
   }
 
   async function handleApprove() {
+    // If the note has been edited but not saved yet, save first
+    if (noteIsEdited && editableNote) {
+      setIsSavingNote(true);
+      try {
+        await updateSessionNote(params.id, params.sessionId, editableNote);
+        setNoteIsEdited(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to save note before confirming");
+        setIsSavingNote(false);
+        return;
+      }
+      setIsSavingNote(false);
+    }
+
     setIsApproving(true);
     setError("");
     try {
@@ -255,10 +277,10 @@ export default function SessionDetailPage() {
     );
   }
 
-  const noteText = generated?.structured_note || session.clinical_note || "";
+  const hasNote = Boolean(editableNote);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full gap-6">
       <div className="flex items-center gap-1.5 text-xs text-[#848484]">
         <Link href="/patients" className="hover:text-clinical-ink flex items-center gap-1">
           <ArrowLeft className="h-3 w-3" />
@@ -283,7 +305,7 @@ export default function SessionDetailPage() {
           <p className="text-sm text-[#848484] mt-1">
             {patient.name} · {patient.condition}
           </p>
-          {(generated?.themes?.length > 0 || generated?.symptoms?.length > 0) && (
+          {((generated?.themes?.length ?? 0) > 0 || (generated?.symptoms?.length ?? 0) > 0) && (
             <div className="flex flex-wrap items-center gap-2 mt-3">
               {generated?.themes?.map((theme: any) => (
                 <Badge key={theme.title} variant="outline" className="bg-clinical-soft/50 text-[#848484] border-[#e2e2e2] font-medium px-2.5 py-0.5 text-[11px]">
@@ -300,12 +322,22 @@ export default function SessionDetailPage() {
         </div>
         <div className="flex gap-2">
           {!session.approved ? (
-            <Button onClick={handleApprove} disabled={isApproving} variant="outline" className="text-amber-600 border-amber-200 hover:bg-amber-100">
-              {isApproving ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4 mr-2"/>}
-              {isApproving ? "Confirming..." : "To Confirm"}
+            <Button
+              onClick={handleApprove}
+              disabled={isApproving || isSavingNote || !hasNote}
+              variant="outline"
+              className="text-amber-600 border-amber-200 hover:bg-amber-100"
+            >
+              {isApproving || isSavingNote ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4 mr-2"/>}
+              {isApproving || isSavingNote ? "Saving..." : "Confirm note"}
             </Button>
           ) : (
-            <Button onClick={handleApprove} disabled={isApproving} variant="outline" className="flex items-center justify-center px-4 h-10 rounded-md bg-emerald-50 text-emerald-700 text-sm font-medium border border-emerald-200 hover:bg-emerald-100 hover:text-emerald-800 transition">
+            <Button
+              onClick={handleApprove}
+              disabled={isApproving}
+              variant="outline"
+              className="flex items-center justify-center px-4 h-10 rounded-md bg-emerald-50 text-emerald-700 text-sm font-medium border border-emerald-200 hover:bg-emerald-100 hover:text-emerald-800 transition"
+            >
               {isApproving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
               {isApproving ? "Reverting..." : "Confirmed"}
             </Button>
@@ -324,122 +356,152 @@ export default function SessionDetailPage() {
         </div>
       )}
 
-      <div className="max-w-5xl space-y-6">
-        <div className="grid lg:grid-cols-2 gap-6">
-          <Card className="flex flex-col">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Mic className="h-4 w-4 text-[#848484]" />
-                Voice transcription
-              </CardTitle>
-              <CardDescription>
-                Record or upload audio, then transcribe it with local Whisper.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 flex-1 flex flex-col">
-              <div className="flex flex-wrap items-center gap-2">
-                {!isRecording ? (
-                  <Button variant="outline" onClick={startRecording} disabled={isTranscribing || session.approved}>
-                    <Mic className="h-4 w-4" /> Record
-                  </Button>
-                ) : (
-                  <Button variant="destructive" onClick={stopRecording} disabled={session.approved}>
-                    <Square className="h-4 w-4" /> Stop
-                  </Button>
-                )}
+      <div className="flex-1 min-h-0">
+        <div className="grid lg:grid-cols-2 gap-6 h-full">
+        {/* Transcription card */}
+        <Card className="flex flex-col overflow-hidden">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Mic className="h-4 w-4 text-[#848484]" />
+              Voice transcription
+            </CardTitle>
+            <CardDescription>
+              Record or upload audio, then transcribe it with local Whisper.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-y-auto flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {!isRecording ? (
+                <Button variant="outline" onClick={startRecording} disabled={isTranscribing || session.approved}>
+                  <Mic className="h-4 w-4" /> Record
+                </Button>
+              ) : (
+                <Button variant="destructive" onClick={stopRecording} disabled={session.approved}>
+                  <Square className="h-4 w-4" /> Stop
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={handleTranscribeRecording}
+                disabled={!audioBlob || isRecording || isTranscribing || session.approved}
+              >
+                {isTranscribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {isTranscribing ? "Transcribing..." : "Transcribe"}
+              </Button>
+              <label className={cn("inline-flex items-center justify-center gap-2 h-9 rounded-md border border-clinical-border bg-white px-3 text-sm font-medium text-clinical-ink hover:bg-clinical-soft cursor-pointer", (isTranscribing || isRecording || session.approved) && "opacity-50 pointer-events-none")}>
+                <Upload className="h-4 w-4" />
+                Upload audio
+                <input
+                  type="file"
+                  accept="audio/*"
+                  className="sr-only"
+                  onChange={handleAudioFile}
+                  disabled={isTranscribing || isRecording || session.approved}
+                />
+              </label>
+              {isRecording && (
+                <span className="inline-flex items-center gap-2 text-xs text-red-700">
+                  <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
+                  Recording
+                </span>
+              )}
+            </div>
+
+            {audioUrl && (
+              <audio controls src={audioUrl} className="w-full" />
+            )}
+
+            <textarea
+              value={transcript}
+              onChange={(event) => setTranscript(event.target.value)}
+              disabled={session.approved}
+              className="w-full flex-1 rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-none disabled:opacity-50 disabled:bg-clinical-soft/50"
+              placeholder="Paste or type the session transcript..."
+            />
+            <p className="text-xs text-[#848484]">{transcript.length} characters</p>
+          </CardContent>
+        </Card>
+
+        {/* AI Clinical Note — editable */}
+        <Card className="flex flex-col overflow-hidden">
+          <CardHeader>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-[#848484]" />
+                  AI-drafted clinical note
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  {session.approved
+                    ? "Confirmed — the note is locked."
+                    : hasNote
+                    ? "Edit the note below, then confirm to save it."
+                    : "Generate a note from the transcript above, then edit and confirm."}
+                </CardDescription>
+              </div>
+              {!session.approved && hasNote && noteIsEdited && (
                 <Button
                   variant="outline"
-                  onClick={handleTranscribeRecording}
-                  disabled={!audioBlob || isRecording || isTranscribing || session.approved}
+                  size="sm"
+                  onClick={handleSaveNote}
+                  disabled={isSavingNote}
+                  className="shrink-0"
                 >
-                  {isTranscribing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  {isTranscribing ? "Transcribing..." : "Transcribe"}
+                  {isSavingNote ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  {isSavingNote ? "Saving..." : "Save draft"}
                 </Button>
-                <label className={cn("inline-flex items-center justify-center gap-2 h-9 rounded-md border border-clinical-border bg-white px-3 text-sm font-medium text-clinical-ink hover:bg-clinical-soft cursor-pointer", (isTranscribing || isRecording || session.approved) && "opacity-50 pointer-events-none")}>
-                  <Upload className="h-4 w-4" />
-                  Upload audio
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    className="sr-only"
-                    onChange={handleAudioFile}
-                    disabled={isTranscribing || isRecording || session.approved}
-                  />
-                </label>
-                {isRecording && (
-                  <span className="inline-flex items-center gap-2 text-xs text-red-700">
-                    <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
-                    Recording
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-y-auto flex flex-col gap-4">
+            {session.approved ? (
+              // Read-only when confirmed
+              <p className="text-sm leading-relaxed text-clinical-ink whitespace-pre-wrap">
+                {editableNote || "No note."}
+              </p>
+            ) : hasNote ? (
+              // Editable textarea
+              <div className="relative flex flex-col flex-1">
+                <textarea
+                  value={editableNote}
+                  onChange={(e) => {
+                    setEditableNote(e.target.value);
+                    setNoteIsEdited(true);
+                  }}
+                  className="w-full flex-1 rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-none"
+                  placeholder="The AI note will appear here..."
+                />
+                {noteIsEdited && (
+                  <span className="absolute top-2 right-3 flex items-center gap-1 text-[11px] text-amber-600">
+                    <Pencil className="h-3 w-3" /> Unsaved changes
                   </span>
                 )}
               </div>
+            ) : (
+              // Empty state
+              <div className="flex flex-col flex-1 items-center justify-center py-10 text-center text-sm text-[#848484] border border-dashed border-clinical-border rounded-md">
+                <Sparkles className="h-6 w-6 mb-3 text-[#c8c8c8]" />
+                No AI note yet. Generate one from the transcript above.
+              </div>
+            )}
 
-              {audioUrl && (
-                <audio controls src={audioUrl} className="w-full" />
-              )}
-
-              <textarea
-                value={transcript}
-                onChange={(event) => setTranscript(event.target.value)}
-                disabled={session.approved}
-                className="w-full flex-1 min-h-[220px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y disabled:opacity-50 disabled:bg-clinical-soft/50"
-                placeholder="Paste or type the session transcript..."
-              />
-              <p className="mt-2 text-xs text-[#848484]">{transcript.length} characters</p>
-            </CardContent>
-          </Card>
-
-          <Card className="flex flex-col">
-            <CardHeader>
-              <CardTitle>Manual note</CardTitle>
-              <CardDescription>
-                Optional clinician note merged into the AI draft request.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 flex flex-col">
-              <textarea
-                value={manualNote}
-                onChange={(event) => setManualNote(event.target.value)}
-                disabled={session.approved}
-                className="w-full flex-1 min-h-[120px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y disabled:opacity-50 disabled:bg-clinical-soft/50"
-                placeholder="Add clinical context before generating..."
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-[#848484]" />
-                AI-drafted clinical note
-              </CardTitle>
-              <CardDescription>
-                Generated by backend via local AI service.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {noteText ? (
-                <p className="text-sm leading-relaxed text-clinical-ink whitespace-pre-wrap">
-                  {noteText}
-                </p>
-              ) : (
-                <p className="text-sm text-[#848484]">
-                  No AI note yet. Generate one from the transcript above.
-                </p>
-              )}
-              {generated?.uncertainties && generated.uncertainties.length > 0 && (
-                <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
-                  <p className="text-xs font-medium text-amber-900">Uncertainties</p>
-                  <ul className="mt-1 space-y-1 text-xs text-amber-800">
-                    {generated.uncertainties.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            {generated?.uncertainties && generated.uncertainties.length > 0 && (
+              <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
+                <p className="text-xs font-medium text-amber-900">Uncertainties</p>
+                <ul className="mt-1 space-y-1 text-xs text-amber-800">
+                  {generated.uncertainties.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        </div>{/* end grid */}
       </div>
     </div>
   );

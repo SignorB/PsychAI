@@ -117,17 +117,10 @@ class AIServiceState:
         patient_id: str,
         session_id: str | None,
         transcript: Transcript,
-        manual_notes: list[str],
     ) -> ClinicalSessionNote:
-        normalized_transcript = transcript
-        if manual_notes:
-            manual_text = "\n".join(f"Nota manuale: {note}" for note in manual_notes)
-            normalized_transcript = transcript.model_copy(
-                update={"raw_text": f"{transcript.raw_text}\n\n{manual_text}"}
-            )
         note = self._pipeline(profile_name).create_clinical_note(
             patient_id=patient_id,
-            transcript=normalized_transcript,
+            transcript=transcript,
         )
         return note.model_copy(update={"session_id": session_id})
 
