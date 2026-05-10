@@ -308,10 +308,24 @@ def generate_pre_session_recap(
     )
     chunks = _pre_session_recap_chunks(patient=patient, previous_session=previous_session)
     question = (
-        "Prepara un recap pre-seduta per lo psicologo usando solo la scheda paziente "
-        "e l'ultimo incontro forniti. Scrivi in italiano, in modo sintetico e operativo. "
-        "Includi: sintesi del caso, cosa e emerso nell'ultimo incontro, punti da riprendere, "
-        "attenzioni o incertezze. Non inventare informazioni."
+        "Prepare a highly concise, actionable pre-session recap for the therapist, using ONLY the provided patient card and the last session notes. "
+        "Write the report in a professional, direct clinical tone. "
+        "CRITICAL: You MUST use Markdown to structure the report. Use headings (###), bold text (**), and bullet points. "
+        "Please structure the recap EXACTLY with the following specific sections (use these as Markdown headings). "
+        "Do not invent any information not explicitly present in the sources.\n\n"
+        "--- EXAMPLE FORMAT ---\n"
+        "### Case Summary\n"
+        "Brief overview of the patient's core issue and current treatment focus.\n\n"
+        "### Last Session Highlights\n"
+        "- **Topic 1:** Discussed [event].\n"
+        "- **Topic 2:** Patient expressed [feeling].\n\n"
+        "### Points to Revisit\n"
+        "- Check in on [homework/intervention].\n"
+        "- Follow up regarding [specific situation].\n\n"
+        "### Clinical Alerts & Uncertainties\n"
+        "- Monitor [specific risk, e.g., low mood].\n"
+        "- Unclear if [ambiguous point from last session].\n"
+        "--- END EXAMPLE FORMAT ---"
     )
 
     try:
@@ -685,17 +699,30 @@ def _build_patient_history_report(
     chunks = _patient_history_report_chunks(patient=patient, sessions=approved_sessions)
     question = (
         "Generate a detailed, longitudinal clinical report (Patient History) based on the initial intake and the approved session summaries. "
-        "Write the report in the same language as the sources (e.g., Italian), but use a professional clinical tone. "
+        "Write the report in a professional clinical tone. "
         "CRITICAL: You MUST use Markdown to structure the report. Use headings (###), bold text (**), and bullet points to make it highly readable. "
-        "Please structure the report with the following specific sections (use these as Markdown headings): "
-        "1. Initial Clinical Picture (Quadro iniziale) "
-        "2. Evolution Over Time (Evoluzione nel tempo) "
-        "3. Recurring Themes (Temi ricorrenti) "
-        "4. Symptoms and Functioning (Sintomi e funzionamento) "
-        "5. Interventions or Homework (Interventi o homework emersi) "
-        "6. Open Points for Treatment (Punti aperti per il trattamento). "
+        "Please structure the report EXACTLY with the following specific sections (use these as Markdown headings). "
         "Do not invent diagnoses, events, or risks not present in the sources. "
-        "If information for a section is insufficient, explicitly state it in that section."
+        "If information for a section is insufficient, explicitly state it in that section.\n\n"
+        "--- EXAMPLE FORMAT ---\n"
+        "### Initial Clinical Picture\n"
+        "The patient presented with [summary of initial state].\n\n"
+        "### Evolution Over Time\n"
+        "- **Session 1:** Patient reported [event].\n"
+        "- **Session 2:** Improvement noted in [area].\n\n"
+        "### Recurring Themes\n"
+        "- **Theme 1:** [description]\n"
+        "- **Theme 2:** [description]\n\n"
+        "### Symptoms and Functioning\n"
+        "- **Anxiety:** Moderate, triggered by [triggers].\n"
+        "- **Sleep:** Improved.\n\n"
+        "### Interventions or Homework\n"
+        "- Assigned CBT worksheets.\n"
+        "- Practiced mindfulness techniques in session.\n\n"
+        "### Open Points for Treatment\n"
+        "- Explore relationship with parents.\n"
+        "- Continue monitoring sleep patterns.\n"
+        "--- END EXAMPLE FORMAT ---"
     )
     answer = answer_from_chunks(
         patient_id=patient.id,

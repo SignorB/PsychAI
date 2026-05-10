@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
 import { AlertCircle, ArrowRight, CheckCircle2, Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -86,9 +87,9 @@ export function DashboardPreSessionRecap({
               <p className="text-[11px] uppercase tracking-wider text-[#848484] font-medium mb-2.5">
                 Generated recap
               </p>
-              <p className="text-[14px] leading-relaxed text-clinical-ink whitespace-pre-wrap">
-                {answer}
-              </p>
+              <div className="prose prose-sm prose-clinical max-w-none prose-headings:text-clinical-ink prose-headings:font-bold prose-p:leading-relaxed prose-p:text-clinical-ink prose-li:text-clinical-ink text-[14px]">
+                <ReactMarkdown>{answer}</ReactMarkdown>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
