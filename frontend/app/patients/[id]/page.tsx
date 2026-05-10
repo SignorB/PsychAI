@@ -174,7 +174,7 @@ export default async function PatientCard({ params }: { params: { id: string } }
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {pDiagnosis.length > 0 ? pDiagnosis.map((d: string) => (
-                        <Badge key={d} variant="default">
+                        <Badge key={d} variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 font-medium">
                           {d}
                         </Badge>
                       )) : <span className="text-sm text-[#848484]">None specified</span>}
@@ -188,7 +188,7 @@ export default async function PatientCard({ params }: { params: { id: string } }
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {pThemes.length > 0 ? pThemes.map((t: string) => (
-                      <Badge key={t} variant="info">
+                      <Badge key={t} variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 font-medium">
                         {t}
                       </Badge>
                     )) : <span className="text-sm text-[#848484]">No themes identified</span>}

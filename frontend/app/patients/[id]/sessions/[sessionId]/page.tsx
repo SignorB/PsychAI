@@ -309,12 +309,12 @@ export default function SessionDetailPage() {
           {((generated?.themes?.length ?? 0) > 0 || (generated?.symptoms?.length ?? 0) > 0) && (
             <div className="flex flex-wrap items-center gap-2 mt-3">
               {generated?.themes?.map((theme: any) => (
-                <Badge key={theme.title} variant="outline" className="bg-clinical-soft/50 text-[#848484] border-[#e2e2e2] font-medium px-2.5 py-0.5 text-[11px]">
+                <Badge key={theme.title} variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 font-medium px-2.5 py-0.5 text-[11px]">
                   {theme.title}
                 </Badge>
               ))}
               {generated?.symptoms?.map((symptom: any) => (
-                <Badge key={symptom.name} variant="outline" className="bg-clinical-soft/50 text-[#848484] border-[#e2e2e2] font-medium px-2.5 py-0.5 text-[11px]">
+                <Badge key={symptom.name} variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 font-medium px-2.5 py-0.5 text-[11px]">
                   {symptom.name}
                 </Badge>
               ))}

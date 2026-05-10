@@ -587,9 +587,9 @@ def _patient_index_text(patient: Patient) -> str:
     return "\n".join(
         part
         for part in [
-            f"Paziente: {_patient_display_name(patient)}",
-            f"Eta: {patient.age}" if patient.age else "",
-            f"Condizione: {patient.condition}" if patient.condition else "",
+            f"Patient: {_patient_display_name(patient)}",
+            f"Age: {patient.age}" if patient.age else "",
+            f"Condition: {patient.condition}" if patient.condition else "",
             f"Note intake: {patient.intake_notes}" if patient.intake_notes else "",
             f"Referral: {patient.referral_letter}" if patient.referral_letter else "",
         ]
@@ -601,9 +601,9 @@ def _session_index_text(therapy_session: TherapySession) -> str:
     return "\n".join(
         part
         for part in [
-            f"Seduta del {_date_only(therapy_session.date)}",
-            f"Trascrizione:\n{therapy_session.transcript}" if therapy_session.transcript else "",
-            f"Nota clinica:\n{therapy_session.clinical_note}" if therapy_session.clinical_note else "",
+            f"Session of {_date_only(therapy_session.date)}",
+            f"Transcription:\n{therapy_session.transcript}" if therapy_session.transcript else "",
+            f"Clinical note:\n{therapy_session.clinical_note}" if therapy_session.clinical_note else "",
         ]
         if part
     )
@@ -782,9 +782,9 @@ def _approved_session_report_text(*, therapy_session: TherapySession, position: 
     return "\n".join(
         part
         for part in [
-            f"Seduta approvata {position} del {_date_only(therapy_session.date)}",
-            f"Nota clinica approvata:\n{therapy_session.clinical_note}" if therapy_session.clinical_note else "",
-            f"Trascrizione:\n{therapy_session.transcript}" if therapy_session.transcript and not therapy_session.clinical_note else "",
+            f"Approved session {position} of {_date_only(therapy_session.date)}",
+            f"Approved clinical note:\n{therapy_session.clinical_note}" if therapy_session.clinical_note else "",
+            f"Transcription:\n{therapy_session.transcript}" if therapy_session.transcript and not therapy_session.clinical_note else "",
         ]
         if part
     )
