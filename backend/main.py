@@ -182,7 +182,7 @@ def create_session(patient_id: int, request: SessionCreateRequest | None = None,
         date=session_date,
         start_time=start_time,
         end_time=end_time,
-        transcript=patient.intake_notes or "",
+        transcript="",
         patient_id=patient.id
     )
     
