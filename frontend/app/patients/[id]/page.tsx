@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
@@ -212,9 +213,9 @@ export default async function PatientCard({ params }: { params: { id: string } }
               <CardContent>
                 {pHistoryReport ? (
                   <div className="space-y-3">
-                    <p className="text-sm leading-relaxed text-clinical-ink whitespace-pre-wrap">
-                      {pHistoryReport}
-                    </p>
+                    <div className="prose prose-sm prose-clinical max-w-none prose-headings:text-clinical-ink prose-headings:font-bold prose-p:leading-relaxed prose-p:text-clinical-ink prose-li:text-clinical-ink">
+                      <ReactMarkdown>{pHistoryReport}</ReactMarkdown>
+                    </div>
                     {pHistoryReportGeneratedAt && (
                       <p className="text-[11px] text-[#848484]">
                         Updated {new Date(pHistoryReportGeneratedAt).toLocaleString()}

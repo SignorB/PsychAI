@@ -683,13 +683,18 @@ def _build_patient_history_report(
     )
     chunks = _patient_history_report_chunks(patient=patient, sessions=approved_sessions)
     question = (
-        "Genera un report clinico longitudinale dettagliato per la scheda paziente, "
-        "basato sulla scheda iniziale e sui riassunti delle sedute approvate. "
-        "Scrivi in italiano professionale. Struttura il report in paragrafi con queste aree: "
-        "quadro iniziale, evoluzione nel tempo, temi ricorrenti, sintomi e funzionamento, "
-        "interventi o homework gia emersi, punti aperti per il trattamento. "
-        "Non inventare diagnosi, eventi o rischi non presenti nelle fonti. "
-        "Se le informazioni sono insufficienti, dichiaralo nel testo."
+        "Generate a detailed, longitudinal clinical report (Patient History) based on the initial intake and the approved session summaries. "
+        "Write the report in the same language as the sources (e.g., Italian), but use a professional clinical tone. "
+        "CRITICAL: You MUST use Markdown to structure the report. Use headings (###), bold text (**), and bullet points to make it highly readable. "
+        "Please structure the report with the following specific sections (use these as Markdown headings): "
+        "1. Initial Clinical Picture (Quadro iniziale) "
+        "2. Evolution Over Time (Evoluzione nel tempo) "
+        "3. Recurring Themes (Temi ricorrenti) "
+        "4. Symptoms and Functioning (Sintomi e funzionamento) "
+        "5. Interventions or Homework (Interventi o homework emersi) "
+        "6. Open Points for Treatment (Punti aperti per il trattamento). "
+        "Do not invent diagnoses, events, or risks not present in the sources. "
+        "If information for a section is insufficient, explicitly state it in that section."
     )
     answer = answer_from_chunks(
         patient_id=patient.id,

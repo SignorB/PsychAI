@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
 import { useParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -460,9 +461,9 @@ export default function SessionDetailPage() {
           <CardContent className="flex-1 overflow-y-auto flex flex-col gap-4">
             {session.approved ? (
               // Read-only when confirmed
-              <p className="text-sm leading-relaxed text-clinical-ink whitespace-pre-wrap">
-                {editableNote || "No note."}
-              </p>
+              <div className="prose prose-sm prose-clinical max-w-none prose-headings:text-clinical-ink prose-headings:font-bold prose-p:leading-relaxed prose-p:text-clinical-ink prose-li:text-clinical-ink">
+                <ReactMarkdown>{editableNote || "No note."}</ReactMarkdown>
+              </div>
             ) : hasNote ? (
               // Editable textarea
               <div className="relative flex flex-col flex-1">
