@@ -35,12 +35,13 @@ export default async function DashboardPage() {
     console.error("Failed to fetch dashboard data:", error);
   }
 
-  const pendingNotes = sessions.filter((session) => !session.clinical_note);
-  const recent = [...sessions]
-    .sort((a, b) => +new Date(b.date) - +new Date(a.date))
+  const pendingNotes = sessions.filter((session) => session.transcript && !session.clinical_note);
+  const upcoming = [...sessions]
+    .filter((session) => +new Date(session.date) >= Date.now())
+    .sort((a, b) => +new Date(a.date) - +new Date(b.date))
     .slice(0, 5);
   const patientById = new Map(patients.map((patient) => [patient.id, patient]));
-  const nextSession = recent[0] || null;
+  const nextSession = upcoming[0] || null;
   const nextPatient = nextSession ? patientById.get(nextSession.patient_id) : null;
 
   const stats = [
@@ -89,9 +90,9 @@ export default async function DashboardPage() {
           <Card className="flex-1 flex flex-col">
           <CardHeader className="flex-row items-center justify-between pb-4">
             <div>
-              <CardTitle className="text-[18px]">Today's appointments</CardTitle>
+              <CardTitle className="text-[18px]">Upcoming appointments</CardTitle>
               <CardDescription className="mt-1">
-                {recent.length} sessions · click any row to open the patient card
+                {upcoming.length} sessions · click any row to open the patient card
               </CardDescription>
             </div>
             <Link href="/calendar">
@@ -101,13 +102,13 @@ export default async function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent className="p-0">
-            {recent.length === 0 ? (
+            {upcoming.length === 0 ? (
               <div className="p-10 text-center text-sm text-[#848484]">
                 No sessions yet. Open a patient and start one.
               </div>
             ) : (
               <ul className="divide-y divide-clinical-border">
-                {recent.map((session, index) => {
+                {upcoming.map((session, index) => {
                   const patient = patientById.get(session.patient_id);
                   const sessionDate = new Date(session.date);
                   const duration = 50; 
@@ -158,7 +159,7 @@ export default async function DashboardPage() {
                 PRE-SESSION RECAP
               </Badge>
             </div>
-            {recent.length > 0 ? (
+            {upcoming.length > 0 ? (
               <>
                 <CardTitle className="text-[18px]">{nextPatient?.name || "Amelia Thornton"}</CardTitle>
                 <CardDescription className="flex items-center gap-1.5 mt-1.5 text-[13px]">

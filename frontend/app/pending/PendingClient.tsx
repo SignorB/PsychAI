@@ -35,8 +35,13 @@ export default function PendingClient({
     return new Map(patients.map((patient) => [patient.id, patient]));
   }, [patients]);
 
+  const noteEligibleSessions = useMemo(
+    () => initialSessions.filter((session) => session.transcript),
+    [initialSessions]
+  );
+
   const filteredSessions = useMemo(() => {
-    return initialSessions.filter((session) => {
+    return noteEligibleSessions.filter((session) => {
       const patient = patientById.get(session.patient_id);
       const name = patient?.name || `Patient ${session.patient_id}`;
       
@@ -50,7 +55,7 @@ export default function PendingClient({
 
       return matchesQ && matchesStatus;
     });
-  }, [initialSessions, patientById, q, statusFilter]);
+  }, [noteEligibleSessions, patientById, q, statusFilter]);
 
   const sortedSessions = useMemo(() => {
     return [...filteredSessions].sort((a, b) => {
@@ -62,8 +67,8 @@ export default function PendingClient({
     });
   }, [filteredSessions]);
 
-  const open = initialSessions.filter((session) => !session.clinical_note);
-  const generated = initialSessions.filter((session) => session.clinical_note);
+  const open = noteEligibleSessions.filter((session) => !session.clinical_note);
+  const generated = noteEligibleSessions.filter((session) => session.clinical_note);
 
   return (
     <div className="space-y-6">
@@ -84,7 +89,7 @@ export default function PendingClient({
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <StatCard label="Open" value={open.length} icon={ClipboardCheck} />
         <StatCard label="Generated" value={generated.length} icon={CheckCircle2} />
-        <StatCard label="Total" value={initialSessions.length} icon={Clock} />
+        <StatCard label="Total" value={noteEligibleSessions.length} icon={Clock} />
       </div>
 
       <Card>

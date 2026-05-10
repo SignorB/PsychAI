@@ -55,6 +55,7 @@ export async function createPatient(payload: {
   address?: string;
   email?: string;
   phone?: string;
+  status?: "Active" | "On hold" | "Discharged";
   is_active?: boolean;
   referral_letter?: string;
   intake_notes?: string;

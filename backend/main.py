@@ -118,6 +118,7 @@ def get_patients(session: Session = Depends(get_session)):
 @app.post("/patients", response_model=Patient)
 def create_patient(patient: Patient, session: Session = Depends(get_session)):
     """Create a new patient."""
+    patient.is_active = patient.status == "Active"
     session.add(patient)
     session.commit()
     session.refresh(patient)

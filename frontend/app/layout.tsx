@@ -27,7 +27,7 @@ export default async function RootLayout({
   try {
     const data = await getSessions();
     const sessions = data.sessions || [];
-    pendingCount = sessions.filter((s: any) => !s.clinical_note).length;
+    pendingCount = sessions.filter((s: any) => s.transcript && !s.clinical_note).length;
   } catch (error) {
     console.error("Failed to fetch sessions for sidebar:", error);
   }

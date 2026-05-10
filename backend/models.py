@@ -33,6 +33,7 @@ class Patient(SQLModel, table=True):
     address: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+    status: str = "Active"
     is_active: bool = True
     referral_letter: Optional[str] = None
     intake_notes: Optional[str] = None
