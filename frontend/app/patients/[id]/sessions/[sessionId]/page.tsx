@@ -95,7 +95,7 @@ export default function SessionDetailPage() {
         ]);
         setPatient(patientData);
         setSession(sessionData);
-        setTranscript(sessionData.transcript || patientData.intake_notes || "");
+        setTranscript(sessionData.transcript || "");
         const existingNote = sessionData.clinical_note || "";
         setEditableNote(existingNote);
         setNoteIsEdited(false);
@@ -280,8 +280,8 @@ export default function SessionDetailPage() {
   const hasNote = Boolean(editableNote);
 
   return (
-    <div className="flex flex-col h-full gap-6">
-      <div className="flex items-center gap-1.5 text-xs text-[#848484]">
+    <div className="flex flex-col h-[calc(100vh-3rem)] lg:h-[calc(100vh-4rem)] gap-6">
+      <div className="flex items-center gap-1.5 text-xs text-[#848484] shrink-0">
         <Link href="/patients" className="hover:text-clinical-ink flex items-center gap-1">
           <ArrowLeft className="h-3 w-3" />
           Patients
@@ -294,7 +294,7 @@ export default function SessionDetailPage() {
         <span className="text-clinical-ink font-medium">Session</span>
       </div>
 
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 shrink-0">
         <div>
           <p className="text-xs uppercase tracking-[0.14em] text-[#848484]">
             Session note
