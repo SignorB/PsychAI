@@ -11,7 +11,7 @@ import subprocess
 from uuid import uuid4
 
 from database import create_db_and_tables, get_session, seed_database
-from models import Patient, TherapySession
+from models import Patient, TherapySession, TrainingPair
 from ai_client import AIServiceClientError, ai_health, answer_from_chunks, ask_patient, draft_session_note, index_patient_source, semantic_search, transcribe_audio
 
 
@@ -38,6 +38,9 @@ class PatientQuestionRequest(BaseModel):
     question: str
     model_profile: str = "qwen"
     top_k: int = 5
+
+class ApproveSessionRequest(BaseModel):
+    final_clinical_note: str
 
 
 class SemanticSearchRequest(BaseModel):
@@ -200,15 +203,50 @@ def upload_session_notes(patient_id: int, session_id: int, request: SessionNoteR
 
 
 @app.post("/patients/{patient_id}/sessions/{session_id}/approve")
-def approve_session(patient_id: int, session_id: int, session: Session = Depends(get_session)):
+def approve_session(patient_id: int, session_id: int, request: ApproveSessionRequest, session: Session = Depends(get_session)):
     therapy_session = session.get(TherapySession, session_id)
     if not therapy_session or therapy_session.patient_id != patient_id:
         raise HTTPException(status_code=404, detail="Session not found")
+    
     therapy_session.approved = True
+    therapy_session.clinical_note = request.final_clinical_note
     session.add(therapy_session)
+    
+    # Save training pair for LoRA fine-tuning
+    if therapy_session.transcript and request.final_clinical_note:
+        training_pair = TrainingPair(
+            session_id=session_id,
+            transcript=therapy_session.transcript,
+            final_clinical_note=request.final_clinical_note
+        )
+        session.add(training_pair)
+        
     session.commit()
     session.refresh(therapy_session)
     return therapy_session
+
+from fastapi.responses import StreamingResponse
+import io
+import json
+
+@app.get("/training/dataset.jsonl")
+def get_training_dataset(session: Session = Depends(get_session)):
+    pairs = session.exec(select(TrainingPair)).all()
+    output = io.StringIO()
+    for pair in pairs:
+        row = {
+            "instruction": "Sei uno psicologo clinico esperto. Scrivi una nota clinica strutturata e approfondita basata sulla seguente trascrizione di una seduta di terapia. Sintetizza la presentazione del paziente, i temi principali e le tue osservazioni cliniche.",
+            "input": pair.transcript,
+            "output": pair.final_clinical_note
+        }
+        output.write(json.dumps(row) + "\n")
+    
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="application/jsonl",
+        headers={"Content-Disposition": "attachment; filename=dataset.jsonl"}
+    )
 
 
 @app.post("/patients/{patient_id}/sessions/{session_id}/generate-note")

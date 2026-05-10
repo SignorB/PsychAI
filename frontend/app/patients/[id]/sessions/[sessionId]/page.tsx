@@ -67,6 +67,7 @@ export default function SessionDetailPage() {
   const [session, setSession] = useState<TherapySession | null>(null);
   const [transcript, setTranscript] = useState("");
   const [manualNote, setManualNote] = useState("");
+  const [editedNoteText, setEditedNoteText] = useState("");
   const [generated, setGenerated] = useState<GeneratedNote | null>(null);
   const [ragQuestion, setRagQuestion] = useState("Cosa va ripreso nella prossima seduta?");
   const [ragAnswer, setRagAnswer] = useState<any>(null);
@@ -108,6 +109,14 @@ export default function SessionDetailPage() {
       if (audioUrl) URL.revokeObjectURL(audioUrl);
     };
   }, [audioUrl]);
+
+  useEffect(() => {
+    if (generated?.structured_note) {
+      setEditedNoteText(generated.structured_note);
+    } else if (session?.clinical_note) {
+      setEditedNoteText(session.clinical_note);
+    }
+  }, [generated?.structured_note, session?.clinical_note]);
 
   const dateLabel = useMemo(() => {
     if (!session?.date) return "";
@@ -154,7 +163,7 @@ export default function SessionDetailPage() {
     setIsApproving(true);
     setError("");
     try {
-      const updatedSession = await approveSession(params.id, params.sessionId);
+      const updatedSession = await approveSession(params.id, params.sessionId, editedNoteText);
       setSession(updatedSession);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to approve session");
@@ -253,8 +262,6 @@ export default function SessionDetailPage() {
       </div>
     );
   }
-
-  const noteText = generated?.structured_note || session.clinical_note || "";
 
   return (
     <div className="space-y-6">
@@ -401,10 +408,12 @@ export default function SessionDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {noteText ? (
-                <p className="text-sm leading-relaxed text-clinical-ink whitespace-pre-wrap">
-                  {noteText}
-                </p>
+              {editedNoteText ? (
+                <textarea
+                  value={editedNoteText}
+                  onChange={(e) => setEditedNoteText(e.target.value)}
+                  className="w-full min-h-[300px] rounded-md border border-clinical-border bg-white p-3 text-sm text-clinical-ink placeholder:text-[#848484] focus:outline-none focus:ring-2 focus:ring-clinical-border resize-y"
+                />
               ) : (
                 <p className="text-sm text-[#848484]">
                   No AI note yet. Generate one from the transcript above.

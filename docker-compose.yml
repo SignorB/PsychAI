@@ -62,6 +62,7 @@ services:
       - whisper-models:/models/whisper
       - session-audio:/data/audio
       - vector-index:/data
+      - lora-models:/models/lora
     expose:
       - "8010"
     depends_on:
@@ -83,8 +84,26 @@ services:
     image: ollama/ollama:latest
     volumes:
       - ollama-data:/root/.ollama
+      - lora-models:/models/lora
     expose:
       - "11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  lora-trainer:
+    image: unsloth/unsloth:latest
+    container_name: lora-trainer
+    environment:
+      - BACKEND_URL=http://backend:8000
+    volumes:
+      - ./ai/scripts:/scripts
+      - lora-models:/models/lora
+    command: ["tail", "-f", "/dev/null"] # Sleep until triggered
     deploy:
       resources:
         reservations:
@@ -99,3 +118,4 @@ volumes:
   whisper-models:
   session-audio:
   vector-index:
+  lora-models:
